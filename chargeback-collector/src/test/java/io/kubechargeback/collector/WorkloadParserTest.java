@@ -150,4 +150,38 @@ class WorkloadParserTest {
         assertEquals(384, w.memReq); // 128Mi * 3
         assertEquals("OK", w.complianceStatus);
     }
+
+    /**
+     * Tests parsing a DaemonSet.
+     */
+    @Test
+    void testFromDaemonSet() {
+        io.fabric8.kubernetes.api.model.apps.DaemonSet ds = new io.fabric8.kubernetes.api.model.apps.DaemonSetBuilder()
+                .withNewMetadata().withName("test-ds").withNamespace("kube-system").endMetadata()
+                .withNewSpec()
+                .withNewTemplate()
+                .withNewSpec()
+                .addNewContainer()
+                .withNewResources()
+                .addToRequests("cpu", new Quantity("50m"))
+                .addToRequests("memory", new Quantity("64Mi"))
+                .addToLimits("cpu", new Quantity("100m"))
+                .addToLimits("memory", new Quantity("128Mi"))
+                .endResources()
+                .endContainer()
+                .endSpec()
+                .endTemplate()
+                .endSpec()
+                .withNewStatus()
+                .withDesiredNumberScheduled(5)
+                .endStatus()
+                .build();
+
+        WorkloadData w = parser.fromDaemonSet(ds);
+        assertEquals("test-ds", w.name);
+        assertEquals("DaemonSet", w.kind);
+        assertEquals(250, w.cpuReq); // 50m * 5
+        assertEquals(320, w.memReq); // 64Mi * 5
+        assertEquals("OK", w.complianceStatus);
+    }
 }

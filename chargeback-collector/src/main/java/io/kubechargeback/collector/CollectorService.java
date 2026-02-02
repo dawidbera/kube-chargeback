@@ -70,6 +70,12 @@ public class CollectorService {
             }
         });
 
+        k8s.apps().daemonSets().inAnyNamespace().list().getItems().forEach(ds -> {
+            if (isAllowed(ds.getMetadata().getNamespace())) {
+                workloads.add(parser.fromDaemonSet(ds));
+            }
+        });
+
         // 3. Aggregate & Create Snapshots
         Map<String, AllocationSnapshot> teamSnapshots = new HashMap<>();
         Map<String, AllocationSnapshot> nsSnapshots = new HashMap<>();
