@@ -149,6 +149,63 @@ public class CollectorRepository {
     }
     
     /**
+     * Finds the applications with the highest cost within a given budget's scope and time range.
+     *
+     * @param b     the budget to analyze
+     * @param start the start of the period
+     * @param end   the end of the period
+     * @param limit the maximum number of results to return
+     * @return a list of top application snapshots
+     */
+    public List<AllocationSnapshot> getTopOffenders(Budget b, Instant start, Instant end, int limit) {
+        // This is a bit complex as we need to find APP snapshots that belong to this budget's selector (TEAM or NAMESPACE)
+        // For simplicity in MVP, if it's a NAMESPACE budget, we look for APPs in that namespace.
+        // If it's a TEAM budget, we look for APPs with that team label.
+        
+        StringBuilder sql = new StringBuilder();
+        sql.append("SELECT s.group_key, SUM(s.cpu_mcpu) as cpu, SUM(s.mem_mib) as mem, SUM(s.total_cost_units) as cost ");
+        sql.append("FROM allocation_snapshots s ");
+        
+        if ("TEAM".equals(b.getSelectorType())) {
+            sql.append("JOIN (SELECT DISTINCT snapshot_id FROM workload_inventory WHERE json_extract(labels_json, '$.team') = ?) i ON s.id = i.snapshot_id ");
+        }
+        
+        sql.append("WHERE s.group_type = 'APP' AND s.window_start >= ? AND s.window_end <= ? ");
+        
+        if ("NAMESPACE".equals(b.getSelectorType())) {
+            // For NAMESPACE budgets, we need to filter apps by namespace in inventory
+            sql.append("AND s.id IN (SELECT snapshot_id FROM workload_inventory WHERE namespace = ?) ");
+        }
+        
+        sql.append("GROUP BY s.group_key ORDER BY cost DESC LIMIT ?");
+
+        List<AllocationSnapshot> results = new ArrayList<>();
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql.toString())) {
+            int idx = 1;
+            if ("TEAM".equals(b.getSelectorType())) ps.setString(idx++, b.getSelectorValue());
+            ps.setString(idx++, start.toString());
+            ps.setString(idx++, end.toString());
+            if ("NAMESPACE".equals(b.getSelectorType())) ps.setString(idx++, b.getSelectorValue());
+            ps.setInt(idx++, limit);
+
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    AllocationSnapshot snap = new AllocationSnapshot();
+                    snap.setGroupKey(rs.getString("group_key"));
+                    snap.setCpuMcpu(rs.getLong("cpu"));
+                    snap.setMemMib(rs.getLong("mem"));
+                    snap.setTotalCostUnits(rs.getDouble("cost"));
+                    results.add(snap);
+                }
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+        return results;
+    }
+
+    /**
      * Maps a database result set row to a Budget object.
      *
      * @param rs the result set
