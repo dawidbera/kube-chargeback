@@ -18,7 +18,8 @@ spec:
       serviceAccountName: kubechargeback-sa
       containers:
       - name: api
-        image: quay.io/kubechargeback/chargeback-api:latest
+        image: docker.io/kubechargeback/chargeback-api:latest
+        imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8080
         resources:

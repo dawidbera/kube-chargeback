@@ -46,6 +46,7 @@ public class CollectorService {
      */
     public void runCollection() {
         LOG.info("Starting collector run...");
+        repository.initDb();
 
         // 1. Define Window (Previous full hour)
         Instant now = Instant.now();

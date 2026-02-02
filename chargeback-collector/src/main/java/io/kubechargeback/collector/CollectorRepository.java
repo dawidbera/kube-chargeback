@@ -18,6 +18,23 @@ public class CollectorRepository {
     @Inject
     AgroalDataSource dataSource;
 
+    public void initDb() {
+        try (java.io.InputStream is = getClass().getClassLoader().getResourceAsStream("db/schema.sql")) {
+            if (is == null) return;
+            String schema = new String(is.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+            try (Connection conn = dataSource.getConnection();
+                 Statement stmt = conn.createStatement()) {
+                for (String sql : schema.split(";")) {
+                    if (!sql.trim().isEmpty()) {
+                        stmt.execute(sql);
+                    }
+                }
+            }
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to init DB", e);
+        }
+    }
+
     /**
      * Saves an allocation snapshot to the database.
      *
