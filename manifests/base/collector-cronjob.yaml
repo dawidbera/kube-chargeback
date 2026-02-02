@@ -19,7 +19,8 @@ spec:
           restartPolicy: OnFailure
           containers:
           - name: collector
-            image: quay.io/kubechargeback/chargeback-collector:latest
+            image: docker.io/kubechargeback/chargeback-collector:latest
+            imagePullPolicy: IfNotPresent
             resources:
               requests:
                 cpu: 100m
