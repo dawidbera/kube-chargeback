@@ -35,7 +35,7 @@ public class WorkloadParser {
      * @param s the StatefulSet to parse
      * @return the parsed WorkloadData
      */
-    public WorkloadData fromStatefulSet(StatefulSet s) {
+    public WorkloadData fromStatefulSet(io.fabric8.kubernetes.api.model.apps.StatefulSet s) {
         WorkloadData w = new WorkloadData();
         w.namespace = s.getMetadata().getNamespace();
         w.kind = "StatefulSet";
@@ -44,6 +44,26 @@ public class WorkloadParser {
 
         int replicas = s.getSpec().getReplicas() != null ? s.getSpec().getReplicas() : 1;
         parseResources(w, s.getSpec().getTemplate().getSpec().getContainers(), replicas);
+        return w;
+    }
+
+    /**
+     * Parses a DaemonSet into WorkloadData.
+     *
+     * @param ds the DaemonSet to parse
+     * @return the parsed WorkloadData
+     */
+    public WorkloadData fromDaemonSet(io.fabric8.kubernetes.api.model.apps.DaemonSet ds) {
+        WorkloadData w = new WorkloadData();
+        w.namespace = ds.getMetadata().getNamespace();
+        w.kind = "DaemonSet";
+        w.name = ds.getMetadata().getName();
+        w.labels = ds.getMetadata().getLabels() != null ? ds.getMetadata().getLabels() : Map.of();
+
+        // For DaemonSets, replicas equals the number of nodes it runs on.
+        // We use desiredNumberScheduled as it represents the footprint the cluster intends to have.
+        int replicas = ds.getStatus() != null ? ds.getStatus().getDesiredNumberScheduled() : 0;
+        parseResources(w, ds.getSpec().getTemplate().getSpec().getContainers(), replicas);
         return w;
     }
 
