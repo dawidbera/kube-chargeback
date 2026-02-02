@@ -4,7 +4,7 @@ Lightweight Kubernetes showback/chargeback tool. It consists of a **CronJob coll
 
 ## Architecture
 
-- **chargeback-api**: Quarkus REST service for budget management and reporting.
+- **chargeback-api**: Quarkus REST service for budget management and reporting. Includes **Swagger UI**.
 - **chargeback-collector**: Quarkus batch application (CronJob) that scans Kubernetes workloads.
 - **chargeback-common**: Shared models and utilities.
 - **Persistence**: Shared SQLite database stored on a PersistentVolumeClaim (PVC).
@@ -12,11 +12,36 @@ Lightweight Kubernetes showback/chargeback tool. It consists of a **CronJob coll
 ## Features
 
 - **Resource Footprint**: Based strictly on Kubernetes `resources.requests`.
+- **Workload Support**: Monitors `Deployments`, `StatefulSets`, and `DaemonSets`.
 - **Budgeting**: Supports `TEAM` and `NAMESPACE` budgets with configurable alert thresholds.
 - **Reporting**:
-  - Global and team-based application cost reports.
+  - Global and team-based application cost reports (powered by SQLite JSON support).
   - Compliance reports identifying workloads with missing resource specifications.
-- **Alerting**: HTTP webhook notifications when budget thresholds are exceeded.
+- **Alerting**: HTTP webhook notifications with a list of **Top Offenders** (most expensive apps) included in the alert payload.
+
+## Alert Webhook Flow
+
+```mermaid
+graph TD
+    A[CronJob: Start Collector] --> B[Scan K8s Workloads]
+    B --> C[Compute CPU/RAM Costs]
+    C --> D[Persist to SQLite]
+    D --> E[Check Enabled Budgets]
+    
+    E --> F{Limit Exceeded?}
+    
+    F -- NO --> G[End Run]
+    F -- YES --> H[Identify Top Offenders]
+    H --> I[Execute sendAlert]
+    
+    subgraph "sendAlert Method (Java)"
+    I --> J[Fetch Webhook URL from Secret]
+    J --> K[Construct JSON Payload]
+    K --> L[Java HttpClient: POST Request]
+    end
+    
+    L --> M((External System: Slack/Teams))
+```
 
 ## Getting Started
 
@@ -24,13 +49,15 @@ Lightweight Kubernetes showback/chargeback tool. It consists of a **CronJob coll
 
 - Java 21+
 - Maven 3.8+ (or use the provided `./mvnw`)
-- A Kubernetes cluster (minikube, kind, OpenShift Sandbox)
+- A Kubernetes cluster (k3s, minikube, kind, OpenShift)
 
-### Build
+### Build and Containerization
 
-To build the entire project:
+To build the project and create Docker images:
 ```bash
-./mvnw clean package
+./mvnw clean package -DskipTests
+docker build -f chargeback-api/src/main/docker/Dockerfile.jvm -t kubechargeback/chargeback-api:latest chargeback-api
+docker build -f chargeback-collector/src/main/docker/Dockerfile.jvm -t kubechargeback/chargeback-collector:latest chargeback-collector
 ```
 
 ### Run Tests
@@ -47,11 +74,6 @@ The project is ready for deployment using Kustomize:
 kubectl apply -k manifests/base
 ```
 
-For OpenShift environments, use the OpenShift overlay:
-```bash
-kubectl apply -k manifests/openshift
-```
-
 ## Configuration
 
 Configuration is managed via the `kubechargeback-config` ConfigMap. Key properties include:
@@ -60,10 +82,13 @@ Configuration is managed via the `kubechargeback-config` ConfigMap. Key properti
 - `label.team`: Label key used to identify teams (default: `team`).
 - `namespace.allowlist`: CSV list of namespaces to monitor (empty means current namespace only).
 
-## API Documentation
+## API & Documentation
 
-The API is available at `/api/v1` and includes endpoints for:
+The API is available at `/api/v1`. 
+- **Swagger UI**: Access interactive documentation at `/q/swagger-ui` (e.g., `http://localhost:8080/q/swagger-ui`).
+
+Available endpoints:
 - `/budgets`: CRUD operations for resource budgets.
 - `/reports/allocations`: Aggregated resource consumption data.
-- `/reports/top-apps`: Most expensive applications (global or team-filtered).
+- `/reports/top-apps`: Most expensive applications (supports `team` filter).
 - `/reports/compliance`: Inventory of workloads with resource specification issues.

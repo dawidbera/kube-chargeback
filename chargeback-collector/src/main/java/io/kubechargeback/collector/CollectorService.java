@@ -244,20 +244,22 @@ public class CollectorService {
         }
 
         if (severity != null) {
-            sendAlert(b, usage, severity, start, end);
+            List<AllocationSnapshot> topOffenders = repository.getTopOffenders(b, start, end, 5);
+            sendAlert(b, usage, severity, start, end, topOffenders);
         }
     }
 
     /**
      * Sends an alert for a budget violation.
      *
-     * @param b        the budget
-     * @param usage    the current usage
-     * @param severity the severity level
-     * @param start    the period start
-     * @param end      the period end
+     * @param b             the budget
+     * @param usage         the current usage
+     * @param severity      the severity level
+     * @param start         the period start
+     * @param end           the period end
+     * @param topOffenders  the list of top apps contributing to usage
      */
-    private void sendAlert(Budget b, AllocationSnapshot usage, String severity, Instant start, Instant end) {
+    private void sendAlert(Budget b, AllocationSnapshot usage, String severity, Instant start, Instant end, List<AllocationSnapshot> topOffenders) {
         String webhookUrl = getWebhookUrl(b.getWebhookSecretName());
         if (webhookUrl == null) {
             LOG.warnf("No webhook URL found for budget %s (secret: %s)", b.getName(), b.getWebhookSecretName());
@@ -279,6 +281,17 @@ public class CollectorService {
             payload.put("currentMemMib", usage.getMemMib());
             payload.put("limitCpuMcpu", b.getCpuMcpuLimit());
             payload.put("limitMemMib", b.getMemMibLimit());
+
+            List<Map<String, Object>> offendersList = new ArrayList<>();
+            for (AllocationSnapshot off : topOffenders) {
+                offendersList.add(Map.of(
+                    "app", off.getGroupKey(),
+                    "cpuMcpu", off.getCpuMcpu(),
+                    "memMib", off.getMemMib(),
+                    "totalCostUnits", off.getTotalCostUnits()
+                ));
+            }
+            payload.put("topOffenders", offendersList);
 
             String json = mapper.writeValueAsString(payload);
 
