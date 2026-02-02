@@ -1,0 +1,153 @@
+package io.kubechargeback.collector;
+
+import io.fabric8.kubernetes.api.model.Quantity;
+import io.fabric8.kubernetes.api.model.apps.Deployment;
+import io.fabric8.kubernetes.api.model.apps.DeploymentBuilder;
+import org.junit.jupiter.api.Test;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+class WorkloadParserTest {
+
+    private final WorkloadParser parser = new WorkloadParser();
+
+    /**
+     * Tests parsing a valid Deployment with CPU and Memory requests and limits.
+     * Verifies that the total resource requirements are calculated correctly based on replicas.
+     */
+    @Test
+    void testFromDeployment_Valid() {
+        Deployment d = new DeploymentBuilder()
+                .withNewMetadata().withName("test-dep").withNamespace("test-ns").addToLabels("team", "team-a").endMetadata()
+                .withNewSpec()
+                .withReplicas(2)
+                .withNewTemplate()
+                .withNewSpec()
+                .addNewContainer()
+                .withNewResources()
+                .addToRequests("cpu", new Quantity("100m"))
+                .addToRequests("memory", new Quantity("128Mi"))
+                .addToLimits("cpu", new Quantity("200m"))
+                .addToLimits("memory", new Quantity("256Mi"))
+                .endResources()
+                .endContainer()
+                .endSpec()
+                .endTemplate()
+                .endSpec()
+                .build();
+
+        WorkloadData w = parser.fromDeployment(d);
+        assertEquals("test-dep", w.name);
+        assertEquals("test-ns", w.namespace);
+        assertEquals(200, w.cpuReq); // 100m * 2
+        assertEquals(256, w.memReq); // 128Mi * 2
+        assertEquals("OK", w.complianceStatus);
+    }
+
+    /**
+     * Tests parsing a Deployment that is missing resource requests.
+     * Verifies that the compliance status reflects the missing requests.
+     */
+    @Test
+    void testFromDeployment_MissingRequests() {
+        Deployment d = new DeploymentBuilder()
+                .withNewMetadata().withName("test-dep").endMetadata()
+                .withNewSpec()
+                .withNewTemplate()
+                .withNewSpec()
+                .addNewContainer()
+                .withNewResources()
+                .addToLimits("cpu", new Quantity("200m"))
+                .addToLimits("memory", new Quantity("256Mi"))
+                .endResources()
+                .endContainer()
+                .endSpec()
+                .endTemplate()
+                .endSpec()
+                .build();
+
+        WorkloadData w = parser.fromDeployment(d);
+        assertEquals(0, w.cpuReq);
+        assertEquals("MISSING_REQUESTS", w.complianceStatus);
+    }
+
+    /**
+     * Tests parsing a Deployment that is missing resource limits.
+     */
+    @Test
+    void testFromDeployment_MissingLimits() {
+        Deployment d = new DeploymentBuilder()
+                .withNewMetadata().withName("test-dep").endMetadata()
+                .withNewSpec()
+                .withNewTemplate()
+                .withNewSpec()
+                .addNewContainer()
+                .withNewResources()
+                .addToRequests("cpu", new Quantity("200m"))
+                .addToRequests("memory", new Quantity("256Mi"))
+                .endResources()
+                .endContainer()
+                .endSpec()
+                .endTemplate()
+                .endSpec()
+                .build();
+
+        WorkloadData w = parser.fromDeployment(d);
+        assertEquals("MISSING_LIMITS", w.complianceStatus);
+    }
+
+    /**
+     * Tests parsing a Deployment that is missing both requests and limits.
+     */
+    @Test
+    void testFromDeployment_BothMissing() {
+        Deployment d = new DeploymentBuilder()
+                .withNewMetadata().withName("test-dep").endMetadata()
+                .withNewSpec()
+                .withNewTemplate()
+                .withNewSpec()
+                .addNewContainer()
+                .withNewResources()
+                .endResources()
+                .endContainer()
+                .endSpec()
+                .endTemplate()
+                .endSpec()
+                .build();
+
+        WorkloadData w = parser.fromDeployment(d);
+        assertEquals("BOTH_MISSING", w.complianceStatus);
+    }
+
+    /**
+     * Tests parsing a StatefulSet.
+     */
+    @Test
+    void testFromStatefulSet() {
+        io.fabric8.kubernetes.api.model.apps.StatefulSet s = new io.fabric8.kubernetes.api.model.apps.StatefulSetBuilder()
+                .withNewMetadata().withName("test-sts").withNamespace("test-ns").endMetadata()
+                .withNewSpec()
+                .withReplicas(3)
+                .withNewTemplate()
+                .withNewSpec()
+                .addNewContainer()
+                .withNewResources()
+                .addToRequests("cpu", new Quantity("100m"))
+                .addToRequests("memory", new Quantity("128Mi"))
+                .addToLimits("cpu", new Quantity("200m"))
+                .addToLimits("memory", new Quantity("256Mi"))
+                .endResources()
+                .endContainer()
+                .endSpec()
+                .endTemplate()
+                .endSpec()
+                .build();
+
+        WorkloadData w = parser.fromStatefulSet(s);
+        assertEquals("test-sts", w.name);
+        assertEquals("StatefulSet", w.kind);
+        assertEquals(300, w.cpuReq); // 100m * 3
+        assertEquals(384, w.memReq); // 128Mi * 3
+        assertEquals("OK", w.complianceStatus);
+    }
+}

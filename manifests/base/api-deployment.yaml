@@ -1,0 +1,37 @@
+# Purpose: Deploys the REST API component which serves budget management and reports.
+# It mounts the shared SQLite database from the PVC at /data.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: chargeback-api
+  namespace: kubechargeback
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: chargeback-api
+  template:
+    metadata:
+      labels:
+        app: chargeback-api
+    spec:
+      serviceAccountName: kubechargeback-sa
+      containers:
+      - name: api
+        image: quay.io/kubechargeback/chargeback-api:latest
+        ports:
+        - containerPort: 8080
+        resources:
+          requests:
+            cpu: 200m
+            memory: 256Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+        volumeMounts:
+        - name: data
+          mountPath: /data
+      volumes:
+      - name: data
+        persistentVolumeClaim:
+          claimName: kubechargeback-sqlite

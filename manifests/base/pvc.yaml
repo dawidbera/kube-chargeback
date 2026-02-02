@@ -1,0 +1,14 @@
+# Purpose: Provides persistent storage for the SQLite database file.
+# This ensures that historical chargeback data and budget configurations persist across pod restarts.
+# The 2Gi size is the MVP requirement.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: kubechargeback-sqlite
+  namespace: kubechargeback
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 2Gi

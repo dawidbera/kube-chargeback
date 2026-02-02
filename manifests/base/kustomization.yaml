@@ -1,0 +1,19 @@
+# base/kustomization.yaml
+# Purpose: Entry point for the base Kubernetes configuration of KubeChargeback.
+# This file aggregates all resources required for the MVP deployment in the 'kubechargeback' namespace.
+
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: kubechargeback
+
+resources:
+  - namespace.yaml
+  - serviceaccount.yaml
+  - rbac.yaml
+  - pvc.yaml
+  - configmap.yaml
+  - secret.yaml
+  - api-deployment.yaml
+  - api-service.yaml
+  - collector-cronjob.yaml

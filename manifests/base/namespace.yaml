@@ -1,0 +1,6 @@
+# Purpose: Defines the dedicated namespace for all KubeChargeback components.
+# This ensures resource isolation within the cluster.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kubechargeback
