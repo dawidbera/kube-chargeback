@@ -74,15 +74,29 @@ public class CollectorService {
         Map<String, AllocationSnapshot> nsSnapshots = new HashMap<>();
         Map<String, AllocationSnapshot> appSnapshots = new HashMap<>();
 
-        String runId = UUID.randomUUID().toString(); // For inventory grouping if needed, or just use window
-
         for (WorkloadData w : workloads) {
+            // Aggregation logic
+            double cpuCost = w.cpuReq * config.getRateCpu() * config.getWindowHours();
+            double memCost = w.memReq * config.getRateMem() * config.getWindowHours();
+            double totalCost = cpuCost + memCost;
+
+            // TEAM
+            String team = w.labels.getOrDefault(config.getLabelTeam(), "unknown");
+            String teamSnapId = String.format("%s_TEAM_%s", windowStart, team);
+            accumulate(teamSnapshots, "TEAM", team, w.cpuReq, w.memReq, cpuCost, memCost, totalCost, windowStart, windowEnd, teamSnapId);
+
+            // NAMESPACE
+            String nsSnapId = String.format("%s_NAMESPACE_%s", windowStart, w.namespace);
+            accumulate(nsSnapshots, "NAMESPACE", w.namespace, w.cpuReq, w.memReq, cpuCost, memCost, totalCost, windowStart, windowEnd, nsSnapId);
+
+            // APP
+            String app = w.labels.getOrDefault(config.getLabelApp(), "unknown");
+            String appSnapId = String.format("%s_APP_%s", windowStart, app);
+            accumulate(appSnapshots, "APP", app, w.cpuReq, w.memReq, cpuCost, memCost, totalCost, windowStart, windowEnd, appSnapId);
+
             // Inventory
             WorkloadInventory inv = new WorkloadInventory();
-            inv.setSnapshotId(runId); // Using runId here. 
-            // Note: Spec says snapshot_id. Usually links to allocation. 
-            // But we have multiple allocation snapshots. 
-            // Let's assume inventory is just a log with this runId.
+            inv.setSnapshotId(appSnapId); // Link to APP snapshot for granular reporting
             inv.setNamespace(w.namespace);
             inv.setKind(w.kind);
             inv.setName(w.name);
@@ -93,22 +107,6 @@ public class CollectorService {
             inv.setMemRequestMib(w.memReq);
             inv.setComplianceStatus(w.complianceStatus);
             repository.saveInventory(inv);
-
-            // Aggregation logic
-            double cpuCost = w.cpuReq * config.getRateCpu() * config.getWindowHours();
-            double memCost = w.memReq * config.getRateMem() * config.getWindowHours();
-            double totalCost = cpuCost + memCost;
-
-            // TEAM
-            String team = w.labels.getOrDefault(config.getLabelTeam(), "unknown");
-            accumulate(teamSnapshots, "TEAM", team, w.cpuReq, w.memReq, cpuCost, memCost, totalCost, windowStart, windowEnd);
-
-            // NAMESPACE
-            accumulate(nsSnapshots, "NAMESPACE", w.namespace, w.cpuReq, w.memReq, cpuCost, memCost, totalCost, windowStart, windowEnd);
-
-            // APP
-            String app = w.labels.getOrDefault(config.getLabelApp(), "unknown");
-            accumulate(appSnapshots, "APP", app, w.cpuReq, w.memReq, cpuCost, memCost, totalCost, windowStart, windowEnd);
         }
 
         // 4. Persist Snapshots
@@ -154,12 +152,14 @@ public class CollectorService {
      * @param totalCost the total calculated cost
      * @param start     the window start time
      * @param end       the window end time
+     * @param id        the snapshot ID
      */
     private void accumulate(Map<String, AllocationSnapshot> map, String type, String key, 
                             long cpu, long mem, double cpuCost, double memCost, double totalCost,
-                            Instant start, Instant end) {
+                            Instant start, Instant end, String id) {
         AllocationSnapshot s = map.computeIfAbsent(key, k -> {
             AllocationSnapshot snap = new AllocationSnapshot();
+            snap.setId(id);
             snap.setGroupType(type);
             snap.setGroupKey(key);
             snap.setWindowStart(start);
