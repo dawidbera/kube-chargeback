@@ -1,0 +1,39 @@
+# Purpose: Periodically executes the collector process to aggregate resource data.
+# It reads workload data from the cluster, computes costs, updates SQLite, and checks budgets.
+# schedule: "0 * * * *" runs the collector at the start of every hour.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: chargeback-collector
+  namespace: kubechargeback
+spec:
+  schedule: "0 * * * *"
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            app: chargeback-collector
+        spec:
+          serviceAccountName: kubechargeback-sa
+          restartPolicy: OnFailure
+          containers:
+          - name: collector
+            image: quay.io/kubechargeback/chargeback-collector:latest
+            resources:
+              requests:
+                cpu: 100m
+                memory: 128Mi
+              limits:
+                cpu: 300m
+                memory: 256Mi
+            envFrom:
+            - configMapRef:
+                name: kubechargeback-config
+            volumeMounts:
+            - name: data
+              mountPath: /data
+          volumes:
+          - name: data
+            persistentVolumeClaim:
+              claimName: kubechargeback-sqlite

@@ -1,0 +1,14 @@
+# Purpose: Exposes the Chargeback API within the cluster.
+# Other components or an Ingress/Route can use this service to reach the API on port 8080.
+apiVersion: v1
+kind: Service
+metadata:
+  name: chargeback-api
+  namespace: kubechargeback
+spec:
+  selector:
+    app: chargeback-api
+  ports:
+  - port: 8080
+    targetPort: 8080
+  type: ClusterIP

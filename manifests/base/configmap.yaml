@@ -1,0 +1,16 @@
+# Purpose: Stores operational configuration and cost rates for the chargeback calculation.
+# rate.cpu_mcpu_hour: Internal cost unit per 1000m CPU per hour.
+# rate.mem_mib_hour: Internal cost unit per 1 MiB memory per hour.
+# label.team/app: Label keys used to group workloads in reports.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kubechargeback-config
+  namespace: kubechargeback
+data:
+  rate.cpu_mcpu_hour: "0.001"
+  rate.mem_mib_hour: "0.0001"
+  label.team: "team"
+  label.app: "app"
+  window.hours: "1"
+  namespace.allowlist: ""
