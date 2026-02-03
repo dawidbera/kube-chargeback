@@ -53,7 +53,7 @@ public class CollectorService {
         Instant windowEnd = now.truncatedTo(ChronoUnit.HOURS);
         Instant windowStart = windowEnd.minus(config.getWindowHours(), ChronoUnit.HOURS);
         
-        LOG.infof("Window: %s - %s", windowStart, windowEnd);
+        LOG.infof("Window:  - ", windowStart, windowEnd);
 
         // 2. Fetch Workloads
         List<WorkloadData> workloads = new ArrayList<>();
@@ -76,6 +76,12 @@ public class CollectorService {
             }
         });
 
+        k8s.batch().v1().jobs().inAnyNamespace().list().getItems().forEach(j -> {
+            if (isAllowed(j.getMetadata().getNamespace())) {
+                workloads.add(parser.fromJob(j, windowStart, windowEnd));
+            }
+        });
+
         // 3. Aggregate & Create Snapshots
         Map<String, AllocationSnapshot> teamSnapshots = new HashMap<>();
         Map<String, AllocationSnapshot> nsSnapshots = new HashMap<>();
@@ -83,22 +89,23 @@ public class CollectorService {
 
         for (WorkloadData w : workloads) {
             // Aggregation logic
-            double cpuCost = w.cpuReq * config.getRateCpu() * config.getWindowHours();
-            double memCost = w.memReq * config.getRateMem() * config.getWindowHours();
+            double duration = w.durationHours > 0 ? w.durationHours : config.getWindowHours();
+            double cpuCost = w.cpuReq * config.getRateCpu() * duration;
+            double memCost = w.memReq * config.getRateMem() * duration;
             double totalCost = cpuCost + memCost;
 
             // TEAM
             String team = w.labels.getOrDefault(config.getLabelTeam(), "unknown");
-            String teamSnapId = String.format("%s_TEAM_%s", windowStart, team);
+            String teamSnapId = String.format("_TEAM_", windowStart, team);
             accumulate(teamSnapshots, "TEAM", team, w.cpuReq, w.memReq, cpuCost, memCost, totalCost, windowStart, windowEnd, teamSnapId);
 
             // NAMESPACE
-            String nsSnapId = String.format("%s_NAMESPACE_%s", windowStart, w.namespace);
+            String nsSnapId = String.format("_NAMESPACE_", windowStart, w.namespace);
             accumulate(nsSnapshots, "NAMESPACE", w.namespace, w.cpuReq, w.memReq, cpuCost, memCost, totalCost, windowStart, windowEnd, nsSnapId);
 
             // APP
             String app = w.labels.getOrDefault(config.getLabelApp(), "unknown");
-            String appSnapId = String.format("%s_APP_%s", windowStart, app);
+            String appSnapId = String.format("_APP_", windowStart, app);
             accumulate(appSnapshots, "APP", app, w.cpuReq, w.memReq, cpuCost, memCost, totalCost, windowStart, windowEnd, appSnapId);
 
             // Inventory
@@ -262,7 +269,7 @@ public class CollectorService {
     private void sendAlert(Budget b, AllocationSnapshot usage, String severity, Instant start, Instant end, List<AllocationSnapshot> topOffenders) {
         String webhookUrl = getWebhookUrl(b.getWebhookSecretName());
         if (webhookUrl == null) {
-            LOG.warnf("No webhook URL found for budget %s (secret: %s)", b.getName(), b.getWebhookSecretName());
+            LOG.warnf("No webhook URL found for budget  (secret: )", b.getName(), b.getWebhookSecretName());
             return;
         }
 
@@ -304,15 +311,15 @@ public class CollectorService {
             httpClient.sendAsync(request, HttpResponse.BodyHandlers.ofString())
                     .thenAccept(res -> {
                         if (res.statusCode() >= 300) {
-                            LOG.errorf("Failed to send alert for budget %s: %s", b.getName(), res.body());
+                            LOG.errorf("Failed to send alert for budget : ", b.getName(), res.body());
                         }
                     })
                     .exceptionally(e -> {
-                        LOG.errorf("Error sending alert for budget %s: %s", b.getName(), e.getMessage());
+                        LOG.errorf("Error sending alert for budget : ", b.getName(), e.getMessage());
                         return null;
                     });
         } catch (Exception e) {
-            LOG.errorf("Error preparing alert for budget %s: %s", b.getName(), e.getMessage());
+            LOG.errorf("Error preparing alert for budget : ", b.getName(), e.getMessage());
         }
     }
 
@@ -330,7 +337,7 @@ public class CollectorService {
                 return new String(Base64.getDecoder().decode(s.getData().get("webhook.url")));
             }
         } catch (Exception e) {
-            LOG.errorf("Error fetching secret %s: %s", secretName, e.getMessage());
+            LOG.errorf("Error fetching secret : ", secretName, e.getMessage());
         }
         return null;
     }

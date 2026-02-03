@@ -15,6 +15,7 @@ import java.util.UUID;
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.containsString;
 
 @QuarkusTest
 public class ReportResourceTest {
@@ -90,6 +91,20 @@ public class ReportResourceTest {
              .statusCode(200)
              .body("size()", is(1))
              .body("[0].groupKey", is("team-a"));
+    }
+
+    @Test
+    public void testAllocationsExport() {
+        given()
+          .queryParam("from", START)
+          .queryParam("to", END)
+          .queryParam("groupBy", "app")
+          .when().get("/api/v1/reports/allocations/export")
+          .then()
+             .statusCode(200)
+             .contentType("text/csv")
+             .body(containsString("payments,1000,2048,1.0000,0.2000,1.2000"))
+             .body(containsString("auth,500,1024,0.5000,0.1000,0.6000"));
     }
 
     @Test

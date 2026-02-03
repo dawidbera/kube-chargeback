@@ -1,11 +1,13 @@
 package io.kubechargeback.api.resource;
 
 import io.kubechargeback.api.repository.ReportRepository;
+import io.kubechargeback.common.model.AllocationSnapshot;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import java.time.Instant;
+import java.util.List;
 
 @Path("/api/v1/reports")
 @Produces(MediaType.APPLICATION_JSON)
@@ -39,6 +41,50 @@ public class ReportResource {
             return Response.ok(repository.findAllocations(fromInst, toInst, groupBy)).build();
         } catch (Exception e) {
              return Response.status(Response.Status.BAD_REQUEST).entity("{\"error\":\"" + e.getMessage() + "\"}").build();
+        }
+    }
+
+    /**
+     * Exports allocation data to CSV.
+     *
+     * @param from    the start time (ISO-8601)
+     * @param to      the end time (ISO-8601)
+     * @param groupBy the dimension to group by
+     * @return a CSV file
+     */
+    @GET
+    @Path("/allocations/export")
+    @Produces("text/csv")
+    public Response exportAllocations(@QueryParam("from") String from,
+                                      @QueryParam("to") String to,
+                                      @QueryParam("groupBy") String groupBy) {
+        if (from == null || to == null || groupBy == null) {
+            return Response.status(Response.Status.BAD_REQUEST).entity("Missing params").build();
+        }
+        try {
+            Instant fromInst = Instant.parse(from);
+            Instant toInst = Instant.parse(to);
+            List<AllocationSnapshot> data = repository.findAllocations(fromInst, toInst, groupBy);
+
+            StringBuilder csv = new StringBuilder();
+            csv.append("Group Key,CPU (mCPU),Memory (MiB),CPU Cost,Memory Cost,Total Cost\n");
+            
+            for (AllocationSnapshot s : data) {
+                csv.append(String.format("%s,%d,%d,%.4f,%.4f,%.4f\n",
+                    s.getGroupKey(),
+                    s.getCpuMcpu(),
+                    s.getMemMib(),
+                    s.getCpuCostUnits(),
+                    s.getMemCostUnits(),
+                    s.getTotalCostUnits()
+                ));
+            }
+
+            return Response.ok(csv.toString())
+                    .header("Content-Disposition", "attachment; filename=\"allocations.csv\"")
+                    .build();
+        } catch (Exception e) {
+             return Response.status(Response.Status.BAD_REQUEST).entity(e.getMessage()).build();
         }
     }
 
