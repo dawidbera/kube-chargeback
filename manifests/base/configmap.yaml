@@ -13,4 +13,5 @@ data:
   label.team: "team"
   label.app: "app"
   window.hours: "1"
+  dashboard.url: "http://kube-chargeback.example.com"
   namespace.allowlist: "default,kube-system,kubechargeback"
