@@ -6,44 +6,66 @@ Lightweight Kubernetes showback/chargeback tool. It consists of a **CronJob coll
 
 - **chargeback-api**: Quarkus REST service for budget management and reporting. Includes **Swagger UI**.
 - **chargeback-collector**: Quarkus batch application (CronJob) that scans Kubernetes workloads.
+- **chargeback-ui**: React-based Dashboard (Vite) for visual cost analysis and compliance monitoring.
 - **chargeback-common**: Shared models and utilities.
 - **Persistence**: Shared SQLite database stored on a PersistentVolumeClaim (PVC).
 
-## Features
-
-- **Resource Footprint**: Based strictly on Kubernetes `resources.requests`.
-- **Workload Support**: Monitors `Deployments`, `StatefulSets`, `DaemonSets`, and `Jobs` (including those managed by `CronJobs`).
-- **Accurate Job Costing**: Specifically calculates duration for short-lived Jobs to ensure precise resource billing.
-- **Budgeting**: Supports `TEAM` and `NAMESPACE` budgets with configurable alert thresholds.
-- **Reporting**:
-  - Global and team-based application cost reports (powered by SQLite JSON support).
-  - **CSV Export**: Data can be exported to Excel-friendly CSV files for finance and management.
-  - Compliance reports identifying workloads with missing resource specifications.
-- **Alerting**: HTTP webhook notifications with a list of **Top Offenders** (most expensive apps) included in the alert payload.
-
-## Alert Webhook Flow
+## System Architecture
 
 ```mermaid
 graph TD
-    A[CronJob: Start Collector] --> B[Scan K8s Workloads]
-    B --> C[Compute CPU/RAM Costs]
-    C --> D[Persist to SQLite]
-    D --> E[Check Enabled Budgets]
-    
-    E --> F{Limit Exceeded?}
-    
-    F -- NO --> G[End Run]
-    F -- YES --> H[Identify Top Offenders]
-    H --> I[Execute sendAlert]
-    
-    subgraph "sendAlert Method (Java)"
-    I --> J[Fetch Webhook URL from Secret]
-    J --> K[Construct JSON Payload]
-    K --> L[Java HttpClient: POST Request]
+    User((User))
+    K8sAPI((Kubernetes API))
+    Webhook((External Webhook))
+
+    subgraph "KubeChargeback System"
+        UI[chargeback-ui <br/> React Dashboard]
+        API[chargeback-api <br/> Quarkus REST]
+        Collector[chargeback-collector <br/> Quarkus Batch]
+        DB[(SQLite Database <br/> on PVC)]
     end
-    
-    L --> M((External System: Slack/Teams))
+
+    User --> UI
+    UI -- "REST API" --> API
+    API -- "JDBC" --> DB
+    Collector -- "Batch Write" --> DB
+    Collector -- "List Workloads" --> K8sAPI
+    Collector -- "Send Alerts" --> Webhook
 ```
+
+## Data Flow & Operations
+
+```mermaid
+sequenceDiagram
+    participant K8s as Kubernetes API
+    participant Coll as chargeback-collector
+    participant DB as SQLite (PVC)
+    participant API as chargeback-api
+    participant UI as chargeback-ui
+    participant User as User
+
+    Note over Coll: Triggered by CronJob (Hourly)
+    Coll->>K8s: List Deployments, StatefulSets, Jobs
+    K8s-->>Coll: Workload Specs (Resource Requests)
+    Coll->>Coll: Compute Costs & Compliance Status
+    Coll->>DB: Persist Allocation Snapshots
+    Coll->>DB: Update Workload Inventory
+    Coll->>DB: Evaluate Budgets (Thresholds)
+    
+    alt Threshold Exceeded
+        Coll->>Webhook: POST /alert (Top Offenders)
+    end
+
+    Note over User: User interaction
+    User->>UI: View Dashboard
+    UI->>API: GET /api/v1/reports/allocations
+    API->>DB: Query Aggregated Costs
+    DB-->>API: Result Set
+    API-->>UI: JSON Data
+    UI-->>User: Visualized Charts (Recharts)
+```
+
+## Features
 
 ## Getting Started
 
@@ -51,6 +73,7 @@ graph TD
 
 - Java 21+
 - Maven 3.8+ (or use the provided `./mvnw`)
+- Node.js 18+ and npm (for the UI)
 - A Kubernetes cluster (k3s, minikube, kind, OpenShift)
 
 ### Build and Containerization
@@ -60,7 +83,14 @@ To build the project and create Docker images:
 ./mvnw clean package -DskipTests
 docker build -f chargeback-api/src/main/docker/Dockerfile.jvm -t kubechargeback/chargeback-api:latest chargeback-api
 docker build -f chargeback-collector/src/main/docker/Dockerfile.jvm -t kubechargeback/chargeback-collector:latest chargeback-collector
+docker build -t kubechargeback/chargeback-ui:latest chargeback-ui
 ```
+
+### Running Locally (Development)
+
+1. **Backend**: `./mvnw -f chargeback-api/pom.xml quarkus:dev`
+2. **Frontend**: `cd chargeback-ui && npm install && npm run dev`
+3. **Collector**: `./mvnw -f chargeback-collector/pom.xml quarkus:dev` (runs once)
 
 ### Run Tests
 
@@ -84,10 +114,24 @@ Configuration is managed via the `kubechargeback-config` ConfigMap. Key properti
 - `label.team`: Label key used to identify teams (default: `team`).
 - `namespace.allowlist`: CSV list of namespaces to monitor (empty means current namespace only).
 
+## CI/CD
+
+This project is configured for **GitLab CI/CD**, even though the source is hosted on GitHub. This is achieved using GitLab's "CI/CD for external repositories" feature.
+
+The pipeline defined in `.gitlab-ci.yml` includes:
+- **Build**: Compiles Java code (Maven) and builds the React production bundle (Vite).
+- **Test**: Executes Maven unit and integration tests.
+- **Package**: Builds Docker images for the API, Collector, and UI using Docker-in-Docker (DinD).
+
+To see the pipeline in action:
+1. Mirror this repository to GitLab or use the "Run CI/CD for external repository" feature in GitLab.
+2. Ensure you have a GitLab Runner available (shared runners on GitLab.com work out of the box).
+
 ## API & Documentation
 
 The API is available at `/api/v1`. 
 - **Swagger UI**: Access interactive documentation at `/q/swagger-ui` (e.g., `http://localhost:8080/q/swagger-ui`).
+- **Dashboard**: Access the UI at `http://localhost:5173` (during development) or the configured Route/Ingress.
 
 Available endpoints:
 - `/budgets`: CRUD operations for resource budgets.

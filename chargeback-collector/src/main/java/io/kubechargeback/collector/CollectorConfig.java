@@ -25,6 +25,9 @@ public class CollectorConfig {
     @ConfigProperty(name = "namespace.allowlist", defaultValue = "")
     Optional<String> allowlist;
 
+    @ConfigProperty(name = "dashboard.url", defaultValue = "")
+    String dashboardUrl;
+
     /**
      * Gets the rate for CPU millicores per hour.
      * @return the CPU rate
@@ -60,4 +63,10 @@ public class CollectorConfig {
      * @return an optional containing the allowlist string
      */
     public Optional<String> getAllowlist() { return allowlist; }
+
+    /**
+     * Gets the dashboard URL for inclusion in alerts.
+     * @return the dashboard URL
+     */
+    public String getDashboardUrl() { return dashboardUrl; }
 }

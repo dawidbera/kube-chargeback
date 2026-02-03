@@ -289,6 +289,10 @@ public class CollectorService {
             payload.put("limitCpuMcpu", b.getCpuMcpuLimit());
             payload.put("limitMemMib", b.getMemMibLimit());
 
+            if (config.getDashboardUrl() != null && !config.getDashboardUrl().isBlank()) {
+                payload.put("dashboardUrl", config.getDashboardUrl());
+            }
+
             List<Map<String, Object>> offendersList = new ArrayList<>();
             for (AllocationSnapshot off : topOffenders) {
                 offendersList.add(Map.of(
