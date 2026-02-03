@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: chargeback-ui
+  namespace: kubechargeback
+spec:
+  selector:
+    app: chargeback-ui
+  ports:
+  - port: 80
+    targetPort: 80
+  type: ClusterIP

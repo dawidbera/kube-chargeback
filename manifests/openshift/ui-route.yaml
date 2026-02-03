@@ -1,0 +1,15 @@
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: chargeback-ui
+  namespace: kubechargeback
+spec:
+  to:
+    kind: Service
+    name: chargeback-ui
+    weight: 100
+  port:
+    targetPort: 80
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
