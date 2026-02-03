@@ -1,0 +1,42 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: chargeback-ui
+  namespace: kubechargeback
+  labels:
+    app: chargeback-ui
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: chargeback-ui
+  template:
+    metadata:
+      labels:
+        app: chargeback-ui
+    spec:
+      containers:
+        - name: ui
+          image: docker.io/kubechargeback/chargeback-ui:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 80
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 80
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 10

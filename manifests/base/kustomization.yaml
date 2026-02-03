@@ -17,3 +17,5 @@ resources:
   - api-deployment.yaml
   - api-service.yaml
   - collector-cronjob.yaml
+  - ui-deployment.yaml
+  - ui-service.yaml

@@ -13,4 +13,4 @@ data:
   label.team: "team"
   label.app: "app"
   window.hours: "1"
-  namespace.allowlist: ""
+  namespace.allowlist: "default,kube-system,kubechargeback"
