@@ -3,8 +3,11 @@ package io.kubechargeback.collector;
 import io.fabric8.kubernetes.api.model.*;
 import io.fabric8.kubernetes.api.model.apps.Deployment;
 import io.fabric8.kubernetes.api.model.apps.StatefulSet;
+import io.fabric8.kubernetes.api.model.batch.v1.Job;
 import jakarta.enterprise.context.ApplicationScoped;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 
@@ -64,6 +67,52 @@ public class WorkloadParser {
         // We use desiredNumberScheduled as it represents the footprint the cluster intends to have.
         int replicas = ds.getStatus() != null ? ds.getStatus().getDesiredNumberScheduled() : 0;
         parseResources(w, ds.getSpec().getTemplate().getSpec().getContainers(), replicas);
+        return w;
+    }
+
+    /**
+     * Parses a Job into WorkloadData, calculating effective duration within the window.
+     *
+     * @param j           the Job to parse
+     * @param windowStart the start of the collection window
+     * @param windowEnd   the end of the collection window
+     * @return the parsed WorkloadData
+     */
+    public WorkloadData fromJob(Job j, Instant windowStart, Instant windowEnd) {
+        WorkloadData w = new WorkloadData();
+        w.namespace = j.getMetadata().getNamespace();
+        w.kind = "Job";
+        w.name = j.getMetadata().getName();
+        w.labels = j.getMetadata().getLabels() != null ? j.getMetadata().getLabels() : Map.of();
+
+        Instant startTime = null;
+        Instant completionTime = null;
+
+        if (j.getStatus() != null) {
+            if (j.getStatus().getStartTime() != null) {
+                startTime = Instant.parse(j.getStatus().getStartTime());
+            }
+            if (j.getStatus().getCompletionTime() != null) {
+                completionTime = Instant.parse(j.getStatus().getCompletionTime());
+            }
+        }
+
+        if (startTime == null) {
+             w.durationHours = 0;
+        } else {
+             Instant effectiveStart = startTime.isBefore(windowStart) ? windowStart : startTime;
+             Instant effectiveEnd = (completionTime == null || completionTime.isAfter(windowEnd)) ? windowEnd : completionTime;
+             
+             if (effectiveEnd.isBefore(effectiveStart)) {
+                 w.durationHours = 0;
+             } else {
+                 long seconds = Duration.between(effectiveStart, effectiveEnd).getSeconds();
+                 w.durationHours = (double) seconds / 3600.0;
+             }
+        }
+
+        int parallelism = j.getSpec().getParallelism() != null ? j.getSpec().getParallelism() : 1;
+        parseResources(w, j.getSpec().getTemplate().getSpec().getContainers(), parallelism);
         return w;
     }
 

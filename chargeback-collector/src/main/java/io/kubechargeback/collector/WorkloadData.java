@@ -9,5 +9,6 @@ public class WorkloadData {
     public Map<String, String> labels;
     public long cpuReq;
     public long memReq;
+    public double durationHours;
     public String complianceStatus;
 }

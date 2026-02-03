@@ -12,10 +12,12 @@ Lightweight Kubernetes showback/chargeback tool. It consists of a **CronJob coll
 ## Features
 
 - **Resource Footprint**: Based strictly on Kubernetes `resources.requests`.
-- **Workload Support**: Monitors `Deployments`, `StatefulSets`, and `DaemonSets`.
+- **Workload Support**: Monitors `Deployments`, `StatefulSets`, `DaemonSets`, and `Jobs` (including those managed by `CronJobs`).
+- **Accurate Job Costing**: Specifically calculates duration for short-lived Jobs to ensure precise resource billing.
 - **Budgeting**: Supports `TEAM` and `NAMESPACE` budgets with configurable alert thresholds.
 - **Reporting**:
   - Global and team-based application cost reports (powered by SQLite JSON support).
+  - **CSV Export**: Data can be exported to Excel-friendly CSV files for finance and management.
   - Compliance reports identifying workloads with missing resource specifications.
 - **Alerting**: HTTP webhook notifications with a list of **Top Offenders** (most expensive apps) included in the alert payload.
 
@@ -90,5 +92,6 @@ The API is available at `/api/v1`.
 Available endpoints:
 - `/budgets`: CRUD operations for resource budgets.
 - `/reports/allocations`: Aggregated resource consumption data.
+- `/reports/allocations/export`: Export allocation data to **CSV**.
 - `/reports/top-apps`: Most expensive applications (supports `team` filter).
 - `/reports/compliance`: Inventory of workloads with resource specification issues.
