@@ -9,6 +9,13 @@ interface Allocation {
   memMib: number;
 }
 
+interface ComplianceItem {
+  namespace: string;
+  kind: string;
+  name: string;
+  complianceStatus: string;
+}
+
 interface Compliance {
   summary: {
     ok: number;
@@ -16,6 +23,7 @@ interface Compliance {
     missingLimits: number;
     bothMissing: number;
   };
+  items: ComplianceItem[];
 }
 
 interface Alert {
@@ -48,6 +56,7 @@ function App() {
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedAlert, setExpandedAlert] = useState<string | null>(null);
+  const [selectedComplianceFilter, setSelectedComplianceFilter] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -73,7 +82,13 @@ function App() {
           { groupKey: 'default', totalCostUnits: 0.5, cpuMcpu: 100, memMib: 128 }
         ]);
         setCompliance({
-          summary: { ok: 15, missingRequests: 2, missingLimits: 3, bothMissing: 1 }
+          summary: { ok: 15, missingRequests: 2, missingLimits: 3, bothMissing: 1 },
+          items: [
+            { namespace: 'default', kind: 'Deployment', name: 'app-1', complianceStatus: 'MISSING_LIMITS' },
+            { namespace: 'default', kind: 'Deployment', name: 'app-2', complianceStatus: 'BOTH_MISSING' },
+            { namespace: 'kube-system', kind: 'DaemonSet', name: 'proxy', complianceStatus: 'MISSING_REQUESTS' },
+            { namespace: 'kube-system', kind: 'Deployment', name: 'coredns', complianceStatus: 'OK' },
+          ]
         });
         setAlerts([
           { id: '1', timestamp: new Date().toISOString(), severity: 'CRITICAL', budgetName: 'marketing-budget', message: "Budget 'marketing-budget' exceeded. Severity: CRITICAL" }
@@ -105,7 +120,7 @@ function App() {
     ? (compliance.summary.ok + compliance.summary.missingRequests + compliance.summary.missingLimits + compliance.summary.bothMissing)
     : 0;
   
-  const complianceScore = complianceTotal > 0 
+  const complianceScore = complianceTotal > 0 && compliance
     ? ((compliance.summary.ok / complianceTotal) * 100).toFixed(0) 
     : "100";
 
@@ -184,17 +199,95 @@ function App() {
           <div id="compliance-summary" className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow scroll-mt-24">
             <h3 className="text-lg font-semibold mb-6 text-slate-800">Compliance Summary</h3>
             <div className="space-y-4">
-              <IssueRow label="Missing Requests" count={compliance?.summary.missingRequests || 0} color="bg-amber-50 text-amber-700 border-amber-100" />
-              <IssueRow label="Missing Limits" count={compliance?.summary.missingLimits || 0} color="bg-orange-50 text-orange-700 border-orange-100" />
-              <IssueRow label="Both Missing" count={compliance?.summary.bothMissing || 0} color="bg-red-50 text-red-700 border-red-100" />
-              <div className="pt-6 border-t border-slate-100 mt-6 flex justify-between items-center">
+              <IssueRow 
+                label="Missing Requests" 
+                count={(compliance?.summary.missingRequests || 0) + (compliance?.summary.bothMissing || 0)} 
+                color="bg-amber-50 text-amber-700 border-amber-100" 
+                onClick={() => setSelectedComplianceFilter(selectedComplianceFilter === 'MISSING_REQUESTS' ? null : 'MISSING_REQUESTS')}
+                isActive={selectedComplianceFilter === 'MISSING_REQUESTS'}
+              />
+              <IssueRow 
+                label="Missing Limits" 
+                count={(compliance?.summary.missingLimits || 0) + (compliance?.summary.bothMissing || 0)} 
+                color="bg-orange-50 text-orange-700 border-orange-100" 
+                onClick={() => setSelectedComplianceFilter(selectedComplianceFilter === 'MISSING_LIMITS' ? null : 'MISSING_LIMITS')}
+                isActive={selectedComplianceFilter === 'MISSING_LIMITS'}
+              />
+              <IssueRow 
+                label="Both Missing" 
+                count={compliance?.summary.bothMissing || 0} 
+                color="bg-red-50 text-red-700 border-red-100" 
+                onClick={() => setSelectedComplianceFilter(selectedComplianceFilter === 'BOTH_MISSING' ? null : 'BOTH_MISSING')}
+                isActive={selectedComplianceFilter === 'BOTH_MISSING'}
+              />
+              <div 
+                onClick={() => setSelectedComplianceFilter(selectedComplianceFilter === 'OK' ? null : 'OK')}
+                className={`pt-6 border-t border-slate-100 mt-6 flex justify-between items-center cursor-pointer p-2 rounded-lg transition-colors ${
+                  selectedComplianceFilter === 'OK' ? 'bg-emerald-50 border-t-emerald-200' : 'hover:bg-slate-50'
+                }`}
+              >
                 <div className="flex flex-col">
-                  <span className="text-slate-500 font-medium text-sm">Healthy Workloads</span>
+                  <span className={`font-medium text-sm ${selectedComplianceFilter === 'OK' ? 'text-emerald-900' : 'text-slate-500'}`}>Healthy Workloads</span>
                   <span className="text-xs text-slate-400">Meeting all resource requirements</span>
                 </div>
-                <span className="text-emerald-600 text-2xl font-bold">{compliance?.summary.ok}</span>
+                <span className={`text-2xl font-bold ${selectedComplianceFilter === 'OK' ? 'text-emerald-700' : 'text-emerald-600'}`}>{compliance?.summary.ok}</span>
               </div>
             </div>
+
+            {/* Compliance Details List */}
+            {selectedComplianceFilter && (
+              <div className="mt-8 pt-6 border-t border-slate-100 animate-in fade-in slide-in-from-top-4 duration-300">
+                <div className="flex items-center justify-between mb-4">
+                  <h4 className="font-bold text-slate-800 flex items-center gap-2">
+                    <Activity className="w-4 h-4 text-indigo-600" />
+                    Details: {selectedComplianceFilter.replace('_', ' ')}
+                  </h4>
+                  <button 
+                    onClick={() => setSelectedComplianceFilter(null)}
+                    className="text-xs font-bold text-indigo-600 hover:text-indigo-800 uppercase tracking-tight"
+                  >
+                    Clear Filter
+                  </button>
+                </div>
+                <div className="max-h-[300px] overflow-y-auto space-y-2 pr-2 custom-scrollbar">
+                  {compliance?.items
+                    .filter(item => {
+                      if (selectedComplianceFilter === 'MISSING_REQUESTS') {
+                        return item.complianceStatus === 'MISSING_REQUESTS' || item.complianceStatus === 'BOTH_MISSING';
+                      }
+                      if (selectedComplianceFilter === 'MISSING_LIMITS') {
+                        return item.complianceStatus === 'MISSING_LIMITS' || item.complianceStatus === 'BOTH_MISSING';
+                      }
+                      return item.complianceStatus === selectedComplianceFilter;
+                    })
+                    .map((item, idx) => (
+                      <div key={idx} className="flex items-center justify-between bg-slate-50 p-3 rounded-xl border border-slate-100 group hover:border-indigo-200 transition-colors">
+                        <div className="flex flex-col">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-bold text-indigo-600 uppercase tracking-tighter">{item.kind}</span>
+                            {item.complianceStatus === 'BOTH_MISSING' && selectedComplianceFilter !== 'BOTH_MISSING' && (
+                              <span className="text-[8px] font-black bg-red-100 text-red-600 px-1 rounded">ALSO MISSING {selectedComplianceFilter === 'MISSING_REQUESTS' ? 'LIMITS' : 'REQUESTS'}</span>
+                            )}
+                          </div>
+                          <span className="text-sm font-bold text-slate-700">{item.name}</span>
+                        </div>
+                        <span className="text-[10px] font-bold bg-white px-2 py-1 rounded border border-slate-200 text-slate-500">{item.namespace}</span>
+                      </div>
+                    ))}
+                  {compliance?.items.filter(item => {
+                    if (selectedComplianceFilter === 'MISSING_REQUESTS') {
+                      return item.complianceStatus === 'MISSING_REQUESTS' || item.complianceStatus === 'BOTH_MISSING';
+                    }
+                    if (selectedComplianceFilter === 'MISSING_LIMITS') {
+                      return item.complianceStatus === 'MISSING_LIMITS' || item.complianceStatus === 'BOTH_MISSING';
+                    }
+                    return item.complianceStatus === selectedComplianceFilter;
+                  }).length === 0 && (
+                    <p className="text-sm text-slate-400 text-center py-4 italic">No workloads found with this status.</p>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -311,10 +404,17 @@ function StatCard({ title, value, unit, icon, href }: { title: string, value: st
   )
 }
 
-function IssueRow({ label, count, color }: { label: string, count: number, color: string }) {
+function IssueRow({ label, count, color, onClick, isActive }: { label: string, count: number, color: string, onClick?: () => void, isActive?: boolean }) {
   return (
-    <div className="flex items-center justify-between p-4 rounded-xl border border-slate-100 bg-slate-50/30 hover:bg-slate-50 transition-colors">
-      <span className="text-slate-700 text-sm font-semibold">{label}</span>
+    <div 
+      onClick={onClick}
+      className={`flex items-center justify-between p-4 rounded-xl border transition-all cursor-pointer ${
+        isActive 
+          ? 'border-indigo-300 bg-indigo-50 shadow-sm ring-1 ring-indigo-200' 
+          : 'border-slate-100 bg-slate-50/30 hover:bg-slate-50 hover:border-slate-200'
+      }`}
+    >
+      <span className={`text-sm font-semibold ${isActive ? 'text-indigo-900' : 'text-slate-700'}`}>{label}</span>
       <span className={`px-4 py-1.5 rounded-full text-xs font-black shadow-sm border ${color}`}>
         {count}
       </span>
