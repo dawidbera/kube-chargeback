@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { LayoutDashboard, ShieldAlert, Wallet, PieChart as PieChartIcon, Activity } from 'lucide-react'
+import { LayoutDashboard, ShieldAlert, Wallet, PieChart as PieChartIcon, Activity, Bell, AlertTriangle } from 'lucide-react'
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts'
 
 interface Allocation {
@@ -18,12 +18,36 @@ interface Compliance {
   };
 }
 
+interface Alert {
+  id: string;
+  timestamp: string;
+  severity: string;
+  budgetName: string;
+  message: string;
+  details?: string;
+}
+
+interface AlertDetails {
+  currentCpuMcpu: number;
+  currentMemMib: number;
+  limitCpuMcpu: number;
+  limitMemMib: number;
+  topOffenders: Array<{
+    app: string;
+    cpuMcpu: number;
+    memMib: number;
+    totalCostUnits: number;
+  }>;
+}
+
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8'];
 
 function App() {
   const [allocations, setAllocations] = useState<Allocation[]>([]);
   const [compliance, setCompliance] = useState<Compliance | null>(null);
+  const [alerts, setAlerts] = useState<Alert[]>([]);
   const [loading, setLoading] = useState(true);
+  const [expandedAlert, setExpandedAlert] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -32,27 +56,17 @@ function App() {
         const start = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
         const end = now.toISOString();
 
-        const [allocRes, compRes] = await Promise.all([
+        const [allocRes, compRes, alertsRes] = await Promise.all([
           fetch(`/api/v1/reports/allocations?from=${start}&to=${end}&groupBy=namespace`),
-          fetch(`/api/v1/reports/compliance?from=${start}&to=${end}`)
+          fetch(`/api/v1/reports/compliance?from=${start}&to=${end}`),
+          fetch(`/api/v1/reports/alerts?limit=5`)
         ]);
 
-        if (allocRes.ok) {
-          const data = await allocRes.json();
-          setAllocations(data);
-        } else {
-          throw new Error("Allocations API failed");
-        }
-
-        if (compRes.ok) {
-          const data = await compRes.json();
-          setCompliance(data);
-        } else {
-          throw new Error("Compliance API failed");
-        }
+        if (allocRes.ok) setAllocations(await allocRes.json());
+        if (compRes.ok) setCompliance(await compRes.json());
+        if (alertsRes.ok) setAlerts(await alertsRes.json());
       } catch (error) {
         console.error("Failed to fetch data, using mock data", error);
-        // Mock data for preview
         setAllocations([
           { groupKey: 'kube-system', totalCostUnits: 12.5, cpuMcpu: 2000, memMib: 4096 },
           { groupKey: 'kubechargeback', totalCostUnits: 2.3, cpuMcpu: 500, memMib: 512 },
@@ -61,6 +75,9 @@ function App() {
         setCompliance({
           summary: { ok: 15, missingRequests: 2, missingLimits: 3, bothMissing: 1 }
         });
+        setAlerts([
+          { id: '1', timestamp: new Date().toISOString(), severity: 'CRITICAL', budgetName: 'marketing-budget', message: "Budget 'marketing-budget' exceeded. Severity: CRITICAL" }
+        ]);
       } finally {
         setLoading(false);
       }
@@ -102,23 +119,33 @@ function App() {
           </div>
           <h1 className="text-xl font-bold text-slate-800 tracking-tight">KubeChargeback <span className="text-indigo-600">Dashboard</span></h1>
         </div>
-        <div className="flex items-center gap-2 text-sm text-slate-500 bg-slate-100 px-3 py-1 rounded-full border border-slate-200">
-          <Activity className="w-4 h-4 text-emerald-500" />
-          Cluster Online
+        <div className="flex items-center gap-4">
+          <a href="#alerts" className="relative block group">
+            <Bell className="w-6 h-6 text-slate-400 cursor-pointer group-hover:text-indigo-600 transition-colors" />
+            {alerts.length > 0 && (
+              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full border-2 border-white">
+                {alerts.length}
+              </span>
+            )}
+          </a>
+          <div className="flex items-center gap-2 text-sm text-slate-500 bg-slate-100 px-3 py-1 rounded-full border border-slate-200">
+            <Activity className="w-4 h-4 text-emerald-500" />
+            Cluster Online
+          </div>
         </div>
       </header>
 
       <main className="p-8 max-w-7xl mx-auto space-y-8">
         {/* Stats Grid */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <StatCard title="Total Cost" value={totalCost.toFixed(2)} unit="Units" icon={<Wallet className="text-indigo-600" />} />
-          <StatCard title="Compliance Score" value={complianceScore} unit="%" icon={<ShieldAlert className="text-amber-500" />} />
-          <StatCard title="Workloads" value={complianceTotal.toString()} unit="Total" icon={<PieChartIcon className="text-emerald-500" />} />
+          <StatCard title="Total Cost" value={totalCost.toFixed(2)} unit="Units" icon={<Wallet className="text-indigo-600" />} href="#cost-chart" />
+          <StatCard title="Compliance Score" value={complianceScore} unit="%" icon={<ShieldAlert className="text-amber-500" />} href="#compliance-summary" />
+          <StatCard title="Workloads" value={complianceTotal.toString()} unit="Total" icon={<PieChartIcon className="text-emerald-500" />} href="#compliance-summary" />
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* Allocation Chart */}
-          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
+          <div id="cost-chart" className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow scroll-mt-24">
             <h3 className="text-lg font-semibold mb-6 text-slate-800">Cost by Namespace</h3>
             <div className="h-[300px] flex items-center justify-center">
               {allocations.length > 0 ? (
@@ -154,7 +181,7 @@ function App() {
           </div>
 
           {/* Compliance Summary */}
-          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
+          <div id="compliance-summary" className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow scroll-mt-24">
             <h3 className="text-lg font-semibold mb-6 text-slate-800">Compliance Summary</h3>
             <div className="space-y-4">
               <IssueRow label="Missing Requests" count={compliance?.summary.missingRequests || 0} color="bg-amber-50 text-amber-700 border-amber-100" />
@@ -170,14 +197,92 @@ function App() {
             </div>
           </div>
         </div>
+
+        {/* Recent Alerts */}
+        {alerts.length > 0 && (
+          <div id="alerts" className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm scroll-mt-24">
+            <h3 className="text-lg font-semibold mb-6 text-slate-800 flex items-center gap-2">
+              <Bell className="w-5 h-5 text-indigo-600" />
+              Recent Budget Notifications
+            </h3>
+            <div className="space-y-3">
+              {alerts.map(alert => {
+                const isExpanded = expandedAlert === alert.id;
+                let details: AlertDetails | null = null;
+                if (alert.details) {
+                  try {
+                    details = JSON.parse(alert.details);
+                  } catch (e) {
+                    console.error("Failed to parse alert details", e);
+                  }
+                }
+
+                return (
+                  <div 
+                    key={alert.id} 
+                    className={`flex flex-col p-4 rounded-xl border transition-all cursor-pointer ${
+                      isExpanded ? 'border-indigo-200 bg-indigo-50/30' : 'border-slate-100 bg-slate-50/50 hover:bg-slate-50'
+                    }`}
+                    onClick={() => setExpandedAlert(isExpanded ? null : alert.id)}
+                  >
+                    <div className="flex items-start gap-4">
+                      <div className={`p-2 rounded-lg ${alert.severity === 'CRITICAL' ? 'bg-red-100 text-red-600' : 'bg-amber-100 text-amber-600'}`}>
+                        <AlertTriangle className="w-5 h-5" />
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="font-bold text-slate-900">{alert.budgetName}</span>
+                          <span className="text-xs text-slate-400 font-medium">{new Date(alert.timestamp).toLocaleString()}</span>
+                        </div>
+                        <p className="text-sm text-slate-600">{alert.message}</p>
+                      </div>
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${alert.severity === 'CRITICAL' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
+                        {alert.severity}
+                      </span>
+                    </div>
+
+                    {isExpanded && details && (
+                      <div className="mt-4 pt-4 border-t border-indigo-100 animate-in fade-in slide-in-from-top-2 duration-200">
+                        <div className="grid grid-cols-2 gap-4 mb-4">
+                          <div className="bg-white/60 p-3 rounded-lg border border-indigo-50">
+                            <p className="text-[10px] text-slate-400 font-bold uppercase mb-1">CPU Usage</p>
+                            <p className="text-sm font-bold text-slate-700">{details.currentCpuMcpu}m / {details.limitCpuMcpu}m</p>
+                          </div>
+                          <div className="bg-white/60 p-3 rounded-lg border border-indigo-50">
+                            <p className="text-[10px] text-slate-400 font-bold uppercase mb-1">Memory Usage</p>
+                            <p className="text-sm font-bold text-slate-700">{details.currentMemMib} MiB / {details.limitMemMib} MiB</p>
+                          </div>
+                        </div>
+                        
+                        <p className="text-xs font-bold text-slate-500 uppercase mb-2 px-1">Top Offenders</p>
+                        <div className="space-y-1">
+                          {details.topOffenders.map((off, idx) => (
+                            <div key={idx} className="flex items-center justify-between bg-white/40 p-2 rounded-lg text-xs">
+                              <span className="font-semibold text-slate-700">{off.app}</span>
+                              <div className="flex items-center gap-4 text-slate-500">
+                                <span>{off.cpuMcpu}m CPU</span>
+                                <span>{off.memMib} MiB</span>
+                                <span className="font-bold text-indigo-600">{off.totalCostUnits.toFixed(2)} Units</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </main>
     </div>
   )
 }
 
-function StatCard({ title, value, unit, icon }: { title: string, value: string, unit: string, icon: React.ReactNode }) {
-  return (
-    <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex items-start justify-between hover:shadow-md transition-all hover:-translate-y-1">
+function StatCard({ title, value, unit, icon, href }: { title: string, value: string, unit: string, icon: React.ReactNode, href?: string }) {
+  const content = (
+    <>
       <div>
         <p className="text-slate-500 text-sm font-semibold mb-1 uppercase tracking-wider">{title}</p>
         <div className="flex items-baseline gap-1">
@@ -185,9 +290,23 @@ function StatCard({ title, value, unit, icon }: { title: string, value: string, 
           <span className="text-slate-400 text-sm font-medium">{unit}</span>
         </div>
       </div>
-      <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 shadow-inner">
+      <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 shadow-inner group-hover:bg-indigo-50 transition-colors">
         {icon}
       </div>
+    </>
+  );
+
+  if (href) {
+    return (
+      <a href={href} className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex items-start justify-between hover:shadow-md transition-all hover:-translate-y-1 group">
+        {content}
+      </a>
+    );
+  }
+
+  return (
+    <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex items-start justify-between">
+      {content}
     </div>
   )
 }

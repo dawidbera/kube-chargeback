@@ -306,6 +306,11 @@ public class CollectorService {
 
             String json = mapper.writeValueAsString(payload);
 
+            // Save to local database for Dashboard
+            String alertId = UUID.randomUUID().toString();
+            String message = String.format("Budget '%s' exceeded. Severity: %s", b.getName(), severity);
+            repository.saveAlert(alertId, severity, b.getName(), message, json);
+
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(webhookUrl))
                     .header("Content-Type", "application/json")

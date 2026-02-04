@@ -1,0 +1,40 @@
+name: Mirror to GitLab
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  workflow_dispatch: {}
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (full history)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure git identity (required by some setups)
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Add GitLab remote
+        env:
+          GITLAB_REPO_URL: ${{ secrets.GITLAB_REPO_URL }}
+        run: |
+          git remote remove gitlab 2>/dev/null || true
+          git remote add gitlab "${GITLAB_REPO_URL}"
+
+      - name: Push mirror to GitLab
+        env:
+          GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
+          GITLAB_REPO_URL: ${{ secrets.GITLAB_REPO_URL }}
+        run: |
+          # Inject token only at runtime (do NOT store it in remote URL permanently)
+          AUTHED_URL="$(echo "${GITLAB_REPO_URL}" | sed -E "s#^https://#https://oauth2:${GITLAB_TOKEN}@#")"
+
+          # Push all refs (branches, tags, remote-tracking refs) and prune removed ones
+          git push --mirror "${AUTHED_URL}"

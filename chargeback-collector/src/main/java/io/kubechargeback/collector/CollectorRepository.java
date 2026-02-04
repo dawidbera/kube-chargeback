@@ -41,14 +41,12 @@ public class CollectorRepository {
      * @param s the snapshot to save
      */
     public void saveSnapshot(AllocationSnapshot s) {
-        // Upsert or Ignore? Spec says: "If a snapshot row already exists... update is not needed; treat as success."
-        // We can use INSERT OR IGNORE (SQLite specific) or INSERT ... ON CONFLICT DO NOTHING.
+        // Use INSERT OR REPLACE to handle potential duplicate IDs or window overlaps
         try (Connection conn = dataSource.getConnection();
              PreparedStatement ps = conn.prepareStatement(
-                     "INSERT INTO allocation_snapshots (id, window_start, window_end, group_type, group_key, " +
+                     "INSERT OR REPLACE INTO allocation_snapshots (id, window_start, window_end, group_type, group_key, " +
                              "cpu_mcpu, mem_mib, cpu_cost_units, mem_cost_units, total_cost_units) " +
-                             "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) " +
-                             "ON CONFLICT(window_start, window_end, group_type, group_key) DO NOTHING")) {
+                             "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")) {
             ps.setString(1, s.getId());
             ps.setString(2, s.getWindowStart().toString());
             ps.setString(3, s.getWindowEnd().toString());
@@ -203,6 +201,31 @@ public class CollectorRepository {
             throw new RuntimeException(e);
         }
         return results;
+    }
+
+    /**
+     * Saves an alert record to the database.
+     *
+     * @param id          the alert UUID
+     * @param severity    the severity (WARN|CRITICAL)
+     * @param budgetName  the name of the budget
+     * @param message     the alert message
+     * @param detailsJson the full alert details as JSON
+     */
+    public void saveAlert(String id, String severity, String budgetName, String message, String detailsJson) {
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement(
+                     "INSERT INTO alerts (id, timestamp, severity, budget_name, message, details_json) VALUES (?, ?, ?, ?, ?, ?)")) {
+            ps.setString(1, id);
+            ps.setString(2, Instant.now().toString());
+            ps.setString(3, severity);
+            ps.setString(4, budgetName);
+            ps.setString(5, message);
+            ps.setString(6, detailsJson);
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     /**
