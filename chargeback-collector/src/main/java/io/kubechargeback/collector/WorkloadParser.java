@@ -164,8 +164,9 @@ public class WorkloadParser {
      */
     private long parseCpu(Quantity q) {
         if (q == null) return 0;
-        // returns millicores
-        return (long) (Quantity.getAmountInBytes(q).doubleValue() * 1000);
+        // getNumericalAmount() handles suffixes like 'm' (milli) correctly.
+        // 100m -> 0.1, 1 -> 1.0
+        return (long) (q.getNumericalAmount().doubleValue() * 1000);
     }
 
     /**
@@ -176,7 +177,7 @@ public class WorkloadParser {
      */
     private long parseMem(Quantity q) {
         if (q == null) return 0;
-        // returns MiB
+        // returns MiB. getAmountInBytes() correctly handles Gi, Mi, Ki etc.
         return Quantity.getAmountInBytes(q).longValue() / (1024 * 1024);
     }
 }

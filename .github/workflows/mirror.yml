@@ -36,5 +36,5 @@ jobs:
           # Inject token only at runtime (do NOT store it in remote URL permanently)
           AUTHED_URL="$(echo "${GITLAB_REPO_URL}" | sed -E "s#^https://#https://oauth2:${GITLAB_TOKEN}@#")"
 
-          # Push all refs (branches, tags, remote-tracking refs) and prune removed ones
-          git push --mirror "${AUTHED_URL}"
+          # Push GitHub's remote-tracking branches to GitLab's local branches and mirror tags
+          git push --force --prune "${AUTHED_URL}" "refs/remotes/origin/*:refs/heads/*" "refs/tags/*:refs/tags/*"
