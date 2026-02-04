@@ -158,7 +158,7 @@ function App() {
               }}
               className={`p-2 rounded-full transition-all ${bellRinging ? 'bg-indigo-100 scale-110' : 'hover:bg-slate-100'}`}
             >
-              <Bell className={`w-6 h-6 transition-colors ${bellRinging ? 'text-indigo-600 fill-indigo-200' : 'text-slate-400 group-hover:text-indigo-600'}`} />
+              <Bell className={`w-6 h-6 transition-colors ${bellRinging ? 'text-indigo-600 fill-indigo-200 animate-bell' : 'text-slate-400 group-hover:text-indigo-600'}`} />
               {alerts.length > 0 && (
                 <span className="absolute top-1 right-1 bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full border-2 border-white">
                   {alerts.length}
@@ -480,13 +480,21 @@ function App() {
           </div>
         </div>
 
-        {/* Recent Alerts */}
-        {alerts.length > 0 && (
-          <div id="alerts" className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm scroll-mt-24">
-            <h3 className="text-lg font-semibold mb-6 text-slate-800 flex items-center gap-2">
-              <Bell className="w-5 h-5 text-indigo-600" />
+        {/* Recent Alerts Section (Always rendered as a scroll target) */}
+        <div id="alerts" className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm scroll-mt-24">
+          <h3 className="text-lg font-semibold mb-6 text-slate-800 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Bell className={`w-5 h-5 ${alerts.length > 0 ? 'text-indigo-600' : 'text-slate-300'}`} />
               Recent Budget Notifications
-            </h3>
+            </div>
+            {alerts.length > 0 && (
+              <span className="text-[10px] font-black bg-red-100 text-red-600 px-2 py-1 rounded-full uppercase tracking-tighter">
+                {alerts.length} New
+              </span>
+            )}
+          </h3>
+          
+          {alerts.length > 0 ? (
             <div className="space-y-3">
               {alerts.map(alert => {
                 const isExpanded = expandedAlert === alert.id;
@@ -555,8 +563,14 @@ function App() {
                 );
               })}
             </div>
-          </div>
-        )}
+          ) : (
+            <div className="py-12 flex flex-col items-center justify-center text-slate-400 bg-slate-50/50 rounded-xl border border-dashed border-slate-200">
+              <Bell className="w-12 h-12 opacity-10 mb-4" />
+              <p className="text-sm font-medium">No recent notifications</p>
+              <p className="text-[10px] uppercase tracking-widest mt-1 opacity-50">Everything looks good</p>
+            </div>
+          )}
+        </div>
       </main>
     </div>
   )
