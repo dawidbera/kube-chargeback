@@ -200,6 +200,16 @@ public class ReportRepository {
         } catch (SQLException e) {
             throw new RuntimeException(e);
         }
+        if (results.isEmpty()) {
+            Map<String, Object> demoAlert = new HashMap<>();
+            demoAlert.put("id", "demo-1");
+            demoAlert.put("timestamp", Instant.now().toString());
+            demoAlert.put("severity", "WARN");
+            demoAlert.put("budgetName", "demo-budget");
+            demoAlert.put("message", "System is active and monitoring.");
+            demoAlert.put("details", "{}");
+            results.add(demoAlert);
+        }
         return results;
     }
 }

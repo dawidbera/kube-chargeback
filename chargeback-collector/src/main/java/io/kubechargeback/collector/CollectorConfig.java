@@ -22,6 +22,9 @@ public class CollectorConfig {
     @ConfigProperty(name = "window.hours", defaultValue = "1")
     int windowHours;
 
+    @ConfigProperty(name = "debug.window.use-current", defaultValue = "false")
+    boolean useCurrentWindow;
+
     @ConfigProperty(name = "namespace.allowlist", defaultValue = "")
     Optional<String> allowlist;
 
@@ -57,6 +60,12 @@ public class CollectorConfig {
      * @return the window hours
      */
     public int getWindowHours() { return windowHours; }
+
+    /**
+     * Checks if debug current window mode is enabled.
+     * @return true if enabled
+     */
+    public boolean isUseCurrentWindow() { return useCurrentWindow; }
 
     /**
      * Gets the allowlist of namespaces.

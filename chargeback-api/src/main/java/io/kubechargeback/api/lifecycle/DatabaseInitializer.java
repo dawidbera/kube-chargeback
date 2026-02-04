@@ -63,6 +63,8 @@ public class DatabaseInitializer {
                                 "('seed2', datetime('now', '-1 day'), datetime('now'), 'NAMESPACE', 'kube-system', 500, 512, 0.75, 0.25, 1.0)");
                         stmt.execute("INSERT INTO workload_inventory (snapshot_id, namespace, kind, name, labels_json, cpu_request_mcpu, mem_request_mib, compliance_status) VALUES " +
                                 "('seed1', 'default', 'Deployment', 'nginx', '{}', 1000, 1024, 'OK')");
+                        stmt.execute("INSERT INTO alerts (id, timestamp, severity, budget_name, message, details_json) VALUES " +
+                                "('alert-1', datetime('now'), 'WARN', 'team-alpha-monthly', 'CPU request exceeded 80% threshold', '{\"cpu_usage\": 1200, \"limit\": 1000}')");
                     }
                 }
             }

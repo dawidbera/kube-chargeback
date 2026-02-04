@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { LayoutDashboard, ShieldAlert, Wallet, PieChart as PieChartIcon, Activity, Bell, AlertTriangle } from 'lucide-react'
+import { LayoutDashboard, ShieldAlert, Wallet, PieChart as PieChartIcon, Activity, Download } from 'lucide-react'
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts'
 
 interface Allocation {
@@ -26,36 +26,12 @@ interface Compliance {
   items: ComplianceItem[];
 }
 
-interface Alert {
-  id: string;
-  timestamp: string;
-  severity: string;
-  budgetName: string;
-  message: string;
-  details?: string;
-}
-
-interface AlertDetails {
-  currentCpuMcpu: number;
-  currentMemMib: number;
-  limitCpuMcpu: number;
-  limitMemMib: number;
-  topOffenders: Array<{
-    app: string;
-    cpuMcpu: number;
-    memMib: number;
-    totalCostUnits: number;
-  }>;
-}
-
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8'];
 
 function App() {
   const [allocations, setAllocations] = useState<Allocation[]>([]);
   const [compliance, setCompliance] = useState<Compliance | null>(null);
-  const [alerts, setAlerts] = useState<Alert[]>([]);
   const [loading, setLoading] = useState(true);
-  const [expandedAlert, setExpandedAlert] = useState<string | null>(null);
   const [selectedComplianceFilter, setSelectedComplianceFilter] = useState<string | null>(null);
   const [selectedNamespace, setSelectedNamespace] = useState<string | null>(null);
   const [topApps, setTopApps] = useState<Allocation[]>([]);
@@ -63,7 +39,13 @@ function App() {
   const [showAllWorkloads, setShowAllWorkloads] = useState(false);
   const [showNamespaceList, setShowNamespaceList] = useState(false);
   const [showCostTable, setShowCostTable] = useState(false);
-  const [bellRinging, setBellRinging] = useState(false);
+
+  const handleDownloadCSV = () => {
+    const now = new Date();
+    const start = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
+    const end = now.toISOString();
+    window.location.href = `/api/v1/reports/allocations/export?from=${start}&to=${end}&groupBy=namespace`;
+  };
 
   useEffect(() => {
     const fetchData = async () => {
@@ -72,16 +54,14 @@ function App() {
         const start = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
         const end = now.toISOString();
 
-        const [allocRes, compRes, alertsRes, topAppsRes] = await Promise.all([
+        const [allocRes, compRes, topAppsRes] = await Promise.all([
           fetch(`/api/v1/reports/allocations?from=${start}&to=${end}&groupBy=namespace`),
           fetch(`/api/v1/reports/compliance?from=${start}&to=${end}`),
-          fetch(`/api/v1/reports/alerts?limit=5`),
           fetch(`/api/v1/reports/top-apps?from=${start}&to=${end}&limit=10`)
         ]);
 
         if (allocRes.ok) setAllocations(await allocRes.json());
         if (compRes.ok) setCompliance(await compRes.json());
-        if (alertsRes.ok) setAlerts(await alertsRes.json());
         if (topAppsRes.ok) setTopApps(await topAppsRes.json());
       } catch (error) {
         console.error("Failed to fetch data, using mock data", error);
@@ -103,9 +83,6 @@ function App() {
             { namespace: 'kube-system', kind: 'DaemonSet', name: 'aws-node', complianceStatus: 'OK' },
           ]
         });
-        setAlerts([
-          { id: '1', timestamp: new Date().toISOString(), severity: 'CRITICAL', budgetName: 'marketing-budget', message: "Budget 'marketing-budget' exceeded. Severity: CRITICAL" }
-        ]);
       } finally {
         setLoading(false);
       }
@@ -148,24 +125,13 @@ function App() {
           <h1 className="text-xl font-bold text-slate-800 tracking-tight">KubeChargeback <span className="text-indigo-600">Dashboard</span></h1>
         </div>
         <div className="flex items-center gap-4">
-          <div className="relative group">
-            <button 
-              onClick={() => {
-                setBellRinging(true);
-                setTimeout(() => setBellRinging(false), 1000);
-                const el = document.getElementById('alerts');
-                if (el) el.scrollIntoView({ behavior: 'smooth' });
-              }}
-              className={`p-2 rounded-full transition-all ${bellRinging ? 'bg-indigo-100 scale-110' : 'hover:bg-slate-100'}`}
-            >
-              <Bell className={`w-6 h-6 transition-colors ${bellRinging ? 'text-indigo-600 fill-indigo-200 animate-bell' : 'text-slate-400 group-hover:text-indigo-600'}`} />
-              {alerts.length > 0 && (
-                <span className="absolute top-1 right-1 bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full border-2 border-white">
-                  {alerts.length}
-                </span>
-              )}
-            </button>
-          </div>
+          <button 
+            onClick={handleDownloadCSV}
+            className="flex items-center gap-2 text-sm font-bold text-indigo-600 hover:bg-indigo-50 px-4 py-2 rounded-xl border border-indigo-100 transition-colors"
+          >
+            <Download className="w-4 h-4" />
+            Download CSV
+          </button>
           <div 
             onClick={() => setShowNamespaceList(!showNamespaceList)}
             className={`flex items-center gap-2 text-sm cursor-pointer transition-colors px-3 py-1 rounded-full border ${
@@ -478,98 +444,6 @@ function App() {
               </div>
             )}
           </div>
-        </div>
-
-        {/* Recent Alerts Section (Always rendered as a scroll target) */}
-        <div id="alerts" className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm scroll-mt-24">
-          <h3 className="text-lg font-semibold mb-6 text-slate-800 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Bell className={`w-5 h-5 ${alerts.length > 0 ? 'text-indigo-600' : 'text-slate-300'}`} />
-              Recent Budget Notifications
-            </div>
-            {alerts.length > 0 && (
-              <span className="text-[10px] font-black bg-red-100 text-red-600 px-2 py-1 rounded-full uppercase tracking-tighter">
-                {alerts.length} New
-              </span>
-            )}
-          </h3>
-          
-          {alerts.length > 0 ? (
-            <div className="space-y-3">
-              {alerts.map(alert => {
-                const isExpanded = expandedAlert === alert.id;
-                let details: AlertDetails | null = null;
-                if (alert.details) {
-                  try {
-                    details = JSON.parse(alert.details);
-                  } catch (e) {
-                    console.error("Failed to parse alert details", e);
-                  }
-                }
-
-                return (
-                  <div 
-                    key={alert.id} 
-                    className={`flex flex-col p-4 rounded-xl border transition-all cursor-pointer ${
-                      isExpanded ? 'border-indigo-200 bg-indigo-50/30' : 'border-slate-100 bg-slate-50/50 hover:bg-slate-50'
-                    }`}
-                    onClick={() => setExpandedAlert(isExpanded ? null : alert.id)}
-                  >
-                    <div className="flex items-start gap-4">
-                      <div className={`p-2 rounded-lg ${alert.severity === 'CRITICAL' ? 'bg-red-100 text-red-600' : 'bg-amber-100 text-amber-600'}`}>
-                        <AlertTriangle className="w-5 h-5" />
-                      </div>
-                      <div className="flex-1">
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="font-bold text-slate-900">{alert.budgetName}</span>
-                          <span className="text-xs text-slate-400 font-medium">{new Date(alert.timestamp).toLocaleString()}</span>
-                        </div>
-                        <p className="text-sm text-slate-600">{alert.message}</p>
-                      </div>
-                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${alert.severity === 'CRITICAL' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
-                        {alert.severity}
-                      </span>
-                    </div>
-
-                    {isExpanded && details && (
-                      <div className="mt-4 pt-4 border-t border-indigo-100 animate-in fade-in slide-in-from-top-2 duration-200">
-                        <div className="grid grid-cols-2 gap-4 mb-4">
-                          <div className="bg-white/60 p-3 rounded-lg border border-indigo-50">
-                            <p className="text-[10px] text-slate-400 font-bold uppercase mb-1">CPU Usage</p>
-                            <p className="text-sm font-bold text-slate-700">{details.currentCpuMcpu}m / {details.limitCpuMcpu}m</p>
-                          </div>
-                          <div className="bg-white/60 p-3 rounded-lg border border-indigo-50">
-                            <p className="text-[10px] text-slate-400 font-bold uppercase mb-1">Memory Usage</p>
-                            <p className="text-sm font-bold text-slate-700">{details.currentMemMib} MiB / {details.limitMemMib} MiB</p>
-                          </div>
-                        </div>
-                        
-                        <p className="text-xs font-bold text-slate-500 uppercase mb-2 px-1">Top Offenders</p>
-                        <div className="space-y-1">
-                          {details.topOffenders.map((off, idx) => (
-                            <div key={idx} className="flex items-center justify-between bg-white/40 p-2 rounded-lg text-xs">
-                              <span className="font-semibold text-slate-700">{off.app}</span>
-                              <div className="flex items-center gap-4 text-slate-500">
-                                <span>{off.cpuMcpu}m CPU</span>
-                                <span>{off.memMib} MiB</span>
-                                <span className="font-bold text-indigo-600">{off.totalCostUnits.toFixed(2)} Units</span>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="py-12 flex flex-col items-center justify-center text-slate-400 bg-slate-50/50 rounded-xl border border-dashed border-slate-200">
-              <Bell className="w-12 h-12 opacity-10 mb-4" />
-              <p className="text-sm font-medium">No recent notifications</p>
-              <p className="text-[10px] uppercase tracking-widest mt-1 opacity-50">Everything looks good</p>
-            </div>
-          )}
         </div>
       </main>
     </div>

@@ -9,7 +9,7 @@ import jakarta.ws.rs.core.Response;
 import java.time.Instant;
 import java.util.List;
 
-@Path("/api/v1/reports")
+@Path("/api/v1/reports") 
 @Produces(MediaType.APPLICATION_JSON)
 public class ReportResource {
 
