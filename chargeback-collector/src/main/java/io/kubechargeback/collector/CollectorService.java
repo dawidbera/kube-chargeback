@@ -53,7 +53,7 @@ public class CollectorService {
         Instant windowEnd = now.truncatedTo(ChronoUnit.HOURS);
         Instant windowStart = windowEnd.minus(config.getWindowHours(), ChronoUnit.HOURS);
         
-        LOG.infof("Window:  - ", windowStart, windowEnd);
+        LOG.infof("Window: %s - %s", windowStart, windowEnd);
 
         // 2. Fetch Workloads
         List<WorkloadData> workloads = new ArrayList<>();
@@ -96,16 +96,16 @@ public class CollectorService {
 
             // TEAM
             String team = w.labels.getOrDefault(config.getLabelTeam(), "unknown");
-            String teamSnapId = String.format("_TEAM_", windowStart, team);
+            String teamSnapId = UUID.randomUUID().toString();
             accumulate(teamSnapshots, "TEAM", team, w.cpuReq, w.memReq, cpuCost, memCost, totalCost, windowStart, windowEnd, teamSnapId);
 
             // NAMESPACE
-            String nsSnapId = String.format("_NAMESPACE_", windowStart, w.namespace);
+            String nsSnapId = UUID.randomUUID().toString();
             accumulate(nsSnapshots, "NAMESPACE", w.namespace, w.cpuReq, w.memReq, cpuCost, memCost, totalCost, windowStart, windowEnd, nsSnapId);
 
             // APP
             String app = w.labels.getOrDefault(config.getLabelApp(), "unknown");
-            String appSnapId = String.format("_APP_", windowStart, app);
+            String appSnapId = UUID.randomUUID().toString();
             accumulate(appSnapshots, "APP", app, w.cpuReq, w.memReq, cpuCost, memCost, totalCost, windowStart, windowEnd, appSnapId);
 
             // Inventory
