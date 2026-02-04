@@ -227,7 +227,7 @@ public class CollectorRepository {
             throw new RuntimeException(e);
         }
     }
-
+    
     /**
      * Maps a database result set row to a Budget object.
      *

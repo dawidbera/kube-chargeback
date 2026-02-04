@@ -2,6 +2,10 @@
 
 Lightweight Kubernetes showback/chargeback tool. It consists of a **CronJob collector** that aggregates CPU/RAM requests into cost units and a **REST API** that serves allocation and compliance reports.
 
+## Preview
+
+![KubeChargeback Dashboard](./assets/dashboard-screenshot.png)
+
 ## Architecture
 
 - **chargeback-api**: Quarkus REST service for budget management and reporting. Includes **Swagger UI**.
@@ -69,6 +73,12 @@ sequenceDiagram
     API->>DB: Query Top 10 by Cost
     API-->>UI: Top Apps List
     UI-->>User: Show Drill-down View
+
+    User->>UI: Click "Download CSV"
+    UI->>API: GET /reports/allocations/export
+    API->>DB: Query Full Allocation Data
+    API-->>UI: CSV File Stream
+    UI-->>User: Trigger Browser Download
 ```
 
 ## Features
@@ -83,7 +93,9 @@ sequenceDiagram
     - **Inclusive Filtering**: Smart compliance views (e.g., "Missing Requests" automatically includes "Both Missing").
     - **Flexible Views**: Toggle between visual charts and detailed data tables for namespace costs.
     - **Live Interaction**: Filter workloads in real-time by clicking on Pie Chart slices or Legend items.
+    - **One-click Export**: Download detailed CSV reports directly from the dashboard header.
 - **Audit-Ready**: Export allocation reports to **CSV** for further financial analysis.
+- **CI/CD Integrated**: Fully automated build and test pipeline using GitHub Actions.
 - **Developer Friendly**: Full **Swagger UI** integration for API exploration and SQLite persistence for simple deployment.
 
 ## Getting Started
