@@ -28,22 +28,22 @@ public class ReportResourceTest {
 
     @BeforeEach
     void setup() throws Exception {
-        // Czyścimy bazę przed każdym testem
+        // Clean the database before each test
         try (Connection conn = dataSource.getConnection()) {
             conn.createStatement().execute("DELETE FROM allocation_snapshots");
             conn.createStatement().execute("DELETE FROM workload_inventory");
 
-            // Wstawiamy dane testowe: Snapshot dla aplikacji 'payments' zespołu 'team-a'
+            // Insert test data: Snapshot for the 'payments' application of 'team-a'
             String appSnapId = START + "_APP_payments";
             insertSnapshot(conn, appSnapId, START, END, "APP", "payments", 1000, 2048, 1.0, 0.2, 1.2);
             insertInventory(conn, appSnapId, "test-ns", "Deployment", "payments", "{\"team\":\"team-a\",\"app\":\"payments\"}", 1000, 2048, "OK");
 
-            // Wstawiamy dane testowe: Snapshot dla aplikacji 'auth' zespołu 'team-b'
+            // Insert test data: Snapshot for the 'auth' application of 'team-b'
             String appSnapId2 = START + "_APP_auth";
             insertSnapshot(conn, appSnapId2, START, END, "APP", "auth", 500, 1024, 0.5, 0.1, 0.6);
             insertInventory(conn, appSnapId2, "test-ns", "Deployment", "auth", "{\"team\":\"team-b\",\"app\":\"auth\"}", 500, 1024, "MISSING_LIMITS");
             
-            // Snapshot typu TEAM
+            // TEAM type snapshot
             insertSnapshot(conn, UUID.randomUUID().toString(), START, END, "TEAM", "team-a", 1000, 2048, 1.0, 0.2, 1.2);
         }
     }
@@ -109,7 +109,7 @@ public class ReportResourceTest {
 
     @Test
     public void testTopAppsReport_WithTeamFilter() {
-        // Szukamy top apps dla team-a. Powinno zwrócić tylko 'payments'.
+        // Search for top apps for team-a. It should return only 'payments'.
         given()
           .queryParam("from", START)
           .queryParam("to", END)
@@ -123,7 +123,7 @@ public class ReportResourceTest {
 
     @Test
     public void testTopAppsReport_Global() {
-        // Bez filtra team. Powinno zwrócić obie aplikacje.
+        // No team filter. It should return both applications.
         given()
           .queryParam("from", START)
           .queryParam("to", END)

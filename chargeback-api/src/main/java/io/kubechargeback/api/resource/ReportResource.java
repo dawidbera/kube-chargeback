@@ -134,4 +134,20 @@ public class ReportResource {
              return Response.status(Response.Status.BAD_REQUEST).entity("{\"error\":\"" + e.getMessage() + "\"}").build();
         }
     }
+
+    /**
+     * Retrieves the recent alert history.
+     *
+     * @param limit the maximum number of alerts to return
+     * @return a list of alerts
+     */
+    @GET
+    @Path("/alerts")
+    public Response alerts(@QueryParam("limit") @DefaultValue("50") int limit) {
+        try {
+            return Response.ok(repository.findAlerts(limit)).build();
+        } catch (Exception e) {
+            return Response.status(Response.Status.BAD_REQUEST).entity("{\"error\":\"" + e.getMessage() + "\"}").build();
+        }
+    }
 }

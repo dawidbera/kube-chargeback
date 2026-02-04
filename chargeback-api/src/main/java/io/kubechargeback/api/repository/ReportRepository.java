@@ -36,13 +36,13 @@ public class ReportRepository {
                      "SUM(cpu_cost_units) as cpu_cost, SUM(mem_cost_units) as mem_cost, " +
                      "SUM(total_cost_units) as total_cost " +
                      "FROM allocation_snapshots " +
-                     "WHERE window_start >= ? AND window_end <= ? AND group_type = ? " +
+                     "WHERE window_start < ? AND window_end > ? AND group_type = ? " +
                      "GROUP BY group_key";
 
         try (Connection conn = dataSource.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setString(1, from.toString());
-            ps.setString(2, to.toString());
+            ps.setString(1, to.toString());
+            ps.setString(2, from.toString());
             ps.setString(3, groupType);
             
             try (ResultSet rs = ps.executeQuery()) {
@@ -83,7 +83,7 @@ public class ReportRepository {
             sql.append("JOIN (SELECT DISTINCT snapshot_id FROM workload_inventory ");
             sql.append("WHERE json_extract(labels_json, '$.team') = ?) i ON s.id = i.snapshot_id ");
         }
-        sql.append("WHERE s.window_start >= ? AND s.window_end <= ? AND s.group_type = 'APP' ");
+        sql.append("WHERE s.window_start < ? AND s.window_end > ? AND s.group_type = 'APP' ");
         sql.append("GROUP BY s.group_key ");
         sql.append("ORDER BY total_cost DESC ");
         sql.append("LIMIT ?");
@@ -94,8 +94,8 @@ public class ReportRepository {
             if (team != null && !team.isBlank()) {
                 ps.setString(paramIdx++, team);
             }
-            ps.setString(paramIdx++, from.toString());
             ps.setString(paramIdx++, to.toString());
+            ps.setString(paramIdx++, from.toString());
             ps.setInt(paramIdx++, limit);
 
             try (ResultSet rs = ps.executeQuery()) {
@@ -134,15 +134,15 @@ public class ReportRepository {
         sql.append("FROM workload_inventory i ");
         if (from != null && to != null) {
             sql.append("JOIN allocation_snapshots s ON i.snapshot_id = s.id ");
-            sql.append("WHERE s.window_start >= ? AND s.window_end <= ? ");
+            sql.append("WHERE s.window_start < ? AND s.window_end > ? ");
         }
         sql.append("LIMIT 500");
 
         try (Connection conn = dataSource.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql.toString())) {
             if (from != null && to != null) {
-                ps.setString(1, from.toString());
-                ps.setString(2, to.toString());
+                ps.setString(1, to.toString());
+                ps.setString(2, from.toString());
             }
 
             try (ResultSet rs = ps.executeQuery()) {
@@ -169,5 +169,37 @@ public class ReportRepository {
         response.put("summary", summary);
         response.put("items", items);
         return response;
+    }
+
+    /**
+     * Retrieves the most recent alerts.
+     *
+     * @param limit the maximum number of alerts to return
+     * @return a list of maps containing alert data
+     */
+    public List<Map<String, Object>> findAlerts(int limit) {
+        List<Map<String, Object>> results = new ArrayList<>();
+        String sql = "SELECT * FROM alerts ORDER BY timestamp DESC LIMIT ?";
+
+        try (Connection conn = dataSource.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, limit);
+
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    Map<String, Object> alert = new HashMap<>();
+                    alert.put("id", rs.getString("id"));
+                    alert.put("timestamp", rs.getString("timestamp"));
+                    alert.put("severity", rs.getString("severity"));
+                    alert.put("budgetName", rs.getString("budget_name"));
+                    alert.put("message", rs.getString("message"));
+                    alert.put("details", rs.getString("details_json"));
+                    results.add(alert);
+                }
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException(e);
+        }
+        return results;
     }
 }

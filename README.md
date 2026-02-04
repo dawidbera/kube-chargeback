@@ -67,6 +67,15 @@ sequenceDiagram
 
 ## Features
 
+- **Automated Collection**: Periodically scans Kubernetes workloads (Deployments, StatefulSets, DaemonSets, and Jobs).
+- **Accurate Job Costing**: Specifically handles Batch Jobs and CronJobs, calculating costs based on actual execution duration.
+- **Resource Compliance**: Identifies workloads missing CPU/Memory requests or limits, providing a "Compliance Score" for the cluster.
+- **Team-based Chargeback**: Groups costs by Namespace or Team using customizable Kubernetes labels.
+- **Intelligent Alerting**: Monitor resource budgets with configurable thresholds (Warn/Critical) and automated Webhook notifications.
+- **Interactive Dashboard**: Modern React UI with visual charts (Recharts) for cost analysis and compliance monitoring.
+- **Audit-Ready**: Export allocation reports to **CSV** for further financial analysis.
+- **Developer Friendly**: Full **Swagger UI** integration for API exploration and SQLite persistence for simple deployment.
+
 ## Getting Started
 
 ### Prerequisites
@@ -74,7 +83,7 @@ sequenceDiagram
 - Java 21+
 - Maven 3.8+ (or use the provided `./mvnw`)
 - Node.js 18+ and npm (for the UI)
-- A Kubernetes cluster (k3s, minikube, kind, OpenShift)
+- A Kubernetes cluster context (k3s, minikube, kind, OpenShift)
 
 ### Build and Containerization
 
@@ -88,9 +97,14 @@ docker build -t kubechargeback/chargeback-ui:latest chargeback-ui
 
 ### Running Locally (Development)
 
-1. **Backend**: `./mvnw -f chargeback-api/pom.xml quarkus:dev`
-2. **Frontend**: `cd chargeback-ui && npm install && npm run dev`
-3. **Collector**: `./mvnw -f chargeback-collector/pom.xml quarkus:dev` (runs once)
+The project includes a convenient script to start all components:
+```bash
+./scripts/run-all.sh
+```
+Or manually:
+1. **Backend**: `./mvnw -f chargeback-api/pom.xml quarkus:dev` (Default: port 8080)
+2. **Frontend**: `cd chargeback-ui && npm install && npm run dev` (Default: port 5173)
+3. **Collector**: `./mvnw -f chargeback-collector/pom.xml quarkus:run -Dquarkus.args="--once"`
 
 ### Run Tests
 
@@ -108,24 +122,18 @@ kubectl apply -k manifests/base
 
 ## Configuration
 
-Configuration is managed via the `kubechargeback-config` ConfigMap. Key properties include:
+Configuration is managed via the `kubechargeback-config` ConfigMap or `application.properties`. Key properties include:
 - `rate.cpu_mcpu_hour`: Cost per 1000m CPU per hour.
 - `rate.mem_mib_hour`: Cost per 1 MiB memory per hour.
 - `label.team`: Label key used to identify teams (default: `team`).
 - `namespace.allowlist`: CSV list of namespaces to monitor (empty means current namespace only).
+- **Note**: The SQLite database uses **WAL (Write-Ahead Logging)** mode to allow concurrent access between the API and the Collector.
 
 ## CI/CD
 
-This project is configured for **GitLab CI/CD**, even though the source is hosted on GitHub. This is achieved using GitLab's "CI/CD for external repositories" feature.
-
-The pipeline defined in `.gitlab-ci.yml` includes:
-- **Build**: Compiles Java code (Maven) and builds the React production bundle (Vite).
-- **Test**: Executes Maven unit and integration tests.
-- **Package**: Builds Docker images for the API, Collector, and UI using Docker-in-Docker (DinD).
-
-To see the pipeline in action:
-1. Mirror this repository to GitLab or use the "Run CI/CD for external repository" feature in GitLab.
-2. Ensure you have a GitLab Runner available (shared runners on GitLab.com work out of the box).
+This project is configured for **GitHub Actions** and **GitLab CI/CD**:
+- **GitHub**: Automated mirroring to GitLab via `.github/workflows/mirror.yml`.
+- **GitLab**: The pipeline defined in `.gitlab-ci.yml` handles building, testing, and packaging Docker images.
 
 ## API & Documentation
 

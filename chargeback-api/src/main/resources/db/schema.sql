@@ -41,3 +41,13 @@ CREATE TABLE IF NOT EXISTS workload_inventory (
   mem_request_mib INTEGER NOT NULL,
   compliance_status TEXT NOT NULL
 );
+
+-- 3.4 alerts
+CREATE TABLE IF NOT EXISTS alerts (
+  id TEXT PRIMARY KEY,
+  timestamp TEXT NOT NULL,
+  severity TEXT NOT NULL,
+  budget_name TEXT NOT NULL,
+  message TEXT NOT NULL,
+  details_json TEXT
+);
