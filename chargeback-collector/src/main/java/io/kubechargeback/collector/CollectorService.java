@@ -48,10 +48,21 @@ public class CollectorService {
         LOG.info("Starting collector run...");
         repository.initDb();
 
-        // 1. Define Window (Previous full hour)
+        // 1. Define Window
         Instant now = Instant.now();
-        Instant windowEnd = now.truncatedTo(ChronoUnit.HOURS);
-        Instant windowStart = windowEnd.minus(config.getWindowHours(), ChronoUnit.HOURS);
+        Instant windowEnd;
+        Instant windowStart;
+
+        if (config.isUseCurrentWindow()) {
+            // For E2E/Debug: use current time and go back by window hours (no truncation)
+            windowEnd = now;
+            windowStart = now.minus(config.getWindowHours(), ChronoUnit.HOURS);
+            LOG.info("Using DEBUG CURRENT WINDOW (no hourly truncation)");
+        } else {
+            // Standard: Previous full hour
+            windowEnd = now.truncatedTo(ChronoUnit.HOURS);
+            windowStart = windowEnd.minus(config.getWindowHours(), ChronoUnit.HOURS);
+        }
         
         LOG.infof("Window: %s - %s", windowStart, windowEnd);
 
@@ -142,15 +153,20 @@ public class CollectorService {
      */
     private boolean isAllowed(String namespace) {
         if (config.getAllowlist().isPresent() && !config.getAllowlist().get().isBlank()) {
-            String[] allowed = config.getAllowlist().get().split(",");
+            String val = config.getAllowlist().get();
+            if ("*".equals(val)) return true;
+            String[] allowed = val.split(",");
             for (String a : allowed) {
                 if (a.trim().equals(namespace)) return true;
             }
             return false;
         }
-        // Spec: empty means “current namespace only”
         String currentNamespace = k8s.getNamespace();
-        return currentNamespace == null || currentNamespace.equals(namespace);
+        boolean allowed = currentNamespace == null || currentNamespace.equals(namespace);
+        if (!allowed) {
+            LOG.debugf("Namespace '%s' filtered out (current: '%s')", namespace, currentNamespace);
+        }
+        return allowed;
     }
 
     /**

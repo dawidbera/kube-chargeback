@@ -56,13 +56,19 @@ sequenceDiagram
         Coll->>Webhook: POST /alert (Top Offenders)
     end
 
-    Note over User: User interaction
-    User->>UI: View Dashboard
-    UI->>API: GET /api/v1/reports/allocations
+    Note over User: User interaction (Real-time Drill-down)
+    User->>UI: Open Dashboard
+    UI->>API: GET /reports/allocations
     API->>DB: Query Aggregated Costs
     DB-->>API: Result Set
     API-->>UI: JSON Data
-    UI-->>User: Visualized Charts (Recharts)
+    UI-->>User: Render Charts & Stats
+
+    User->>UI: Click "Total Cost"
+    UI->>API: GET /reports/top-apps
+    API->>DB: Query Top 10 by Cost
+    API-->>UI: Top Apps List
+    UI-->>User: Show Drill-down View
 ```
 
 ## Features
@@ -72,7 +78,11 @@ sequenceDiagram
 - **Resource Compliance**: Identifies workloads missing CPU/Memory requests or limits, providing a "Compliance Score" for the cluster.
 - **Team-based Chargeback**: Groups costs by Namespace or Team using customizable Kubernetes labels.
 - **Intelligent Alerting**: Monitor resource budgets with configurable thresholds (Warn/Critical) and automated Webhook notifications.
-- **Interactive Dashboard**: Modern React UI with visual charts (Recharts) for cost analysis and compliance monitoring.
+- **Interactive Dashboard**: Modern React UI with visual charts (Recharts) and deep-dive capabilities:
+    - **Drill-down**: Click on any metric (Total Cost, Compliance, Workloads) to see detailed breakdowns.
+    - **Inclusive Filtering**: Smart compliance views (e.g., "Missing Requests" automatically includes "Both Missing").
+    - **Flexible Views**: Toggle between visual charts and detailed data tables for namespace costs.
+    - **Live Interaction**: Filter workloads in real-time by clicking on Pie Chart slices or Legend items.
 - **Audit-Ready**: Export allocation reports to **CSV** for further financial analysis.
 - **Developer Friendly**: Full **Swagger UI** integration for API exploration and SQLite persistence for simple deployment.
 
@@ -111,6 +121,11 @@ Or manually:
 To run all unit and integration tests:
 ```bash
 ./mvnw test -Dquarkus.http.test-port=0
+```
+
+To run the end-to-end integration test (requires a running cluster and API):
+```bash
+./scripts/e2e-test.sh
 ```
 
 ### Deployment
