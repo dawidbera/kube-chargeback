@@ -190,22 +190,34 @@ function App() {
             onClick={() => {
               setShowTopApps(!showTopApps);
               setShowAllWorkloads(false);
+              setSelectedComplianceFilter(null);
             }}
             isActive={showTopApps}
           />
-          <StatCard title="Compliance Score" value={complianceScore} unit="%" icon={<ShieldAlert className="text-amber-500" />} href="#compliance-summary" />
+          <StatCard 
+            title="Compliance Score" 
+            value={complianceScore} 
+            unit="%" 
+            icon={<ShieldAlert className={showAllWorkloads && !selectedComplianceFilter ? "text-white" : "text-amber-500"} />} 
+            onClick={() => {
+              setShowAllWorkloads(!showAllWorkloads);
+              setShowTopApps(false);
+              setSelectedComplianceFilter(null);
+            }}
+            isActive={showAllWorkloads && !selectedComplianceFilter}
+          />
           <StatCard 
             title="Workloads" 
             value={complianceTotal.toString()} 
             unit="Total" 
-            icon={<PieChartIcon className={showAllWorkloads ? "text-white" : "text-emerald-500"} />} 
+            icon={<PieChartIcon className={showAllWorkloads && !selectedComplianceFilter ? "text-white" : "text-emerald-500"} />} 
             onClick={() => {
               setShowAllWorkloads(!showAllWorkloads);
               setShowTopApps(false);
               setSelectedComplianceFilter(null);
               setSelectedNamespace(null);
             }}
-            isActive={showAllWorkloads}
+            isActive={showAllWorkloads && !selectedComplianceFilter}
           />
         </div>
 
@@ -234,9 +246,23 @@ function App() {
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* Allocation Chart */}
-          <div id="cost-chart" className={`bg-white p-6 rounded-2xl border transition-all scroll-mt-24 ${selectedNamespace ? 'border-indigo-300 ring-2 ring-indigo-50 shadow-lg' : 'border-slate-200 shadow-sm'}`}>
+          <div 
+            id="cost-chart" 
+            className={`bg-white p-6 rounded-2xl border transition-all scroll-mt-24 cursor-pointer group/card ${
+              selectedNamespace ? 'border-indigo-300 ring-2 ring-indigo-50 shadow-lg' : 'border-slate-200 shadow-sm hover:border-indigo-200'
+            }`}
+            onClick={(e) => {
+              // Only reset if clicking the card background, not the pie itself (which has its own handler)
+              if (e.target === e.currentTarget) {
+                setSelectedNamespace(null);
+              }
+            }}
+          >
             <div className="flex items-center justify-between mb-6">
-              <h3 className="text-lg font-semibold text-slate-800">Cost by Namespace</h3>
+              <h3 className="text-lg font-semibold text-slate-800 flex items-center gap-2">
+                Cost by Namespace
+                {selectedNamespace && <span className="text-xs bg-indigo-600 text-white px-2 py-0.5 rounded-full animate-pulse">Filtered</span>}
+              </h3>
               {selectedNamespace && (
                 <button 
                   onClick={() => setSelectedNamespace(null)}
@@ -483,11 +509,11 @@ function App() {
 function StatCard({ title, value, unit, icon, href, onClick, isActive }: { title: string, value: string, unit: string, icon: React.ReactNode, href?: string, onClick?: () => void, isActive?: boolean }) {
   const content = (
     <>
-      <div className="relative z-10">
-        <p className={`text-sm font-semibold mb-1 uppercase tracking-wider ${isActive ? 'text-indigo-100' : 'text-slate-500'}`}>{title}</p>
+      <div className="relative z-10 text-left">
+        <p className={`text-[10px] font-bold mb-1 uppercase tracking-widest ${isActive ? 'text-indigo-100' : 'text-slate-500'}`}>{title}</p>
         <div className="flex items-baseline gap-1">
-          <span className={`text-3xl font-extrabold ${isActive ? 'text-white' : 'text-slate-900'}`}>{value}</span>
-          <span className={`text-sm font-medium ${isActive ? 'text-indigo-200' : 'text-slate-400'}`}>{unit}</span>
+          <span className={`text-3xl font-black ${isActive ? 'text-white' : 'text-slate-900'}`}>{value}</span>
+          <span className={`text-sm font-bold ${isActive ? 'text-indigo-200' : 'text-slate-400'}`}>{unit}</span>
         </div>
       </div>
       <div className={`p-3 rounded-xl border transition-colors relative z-10 ${
@@ -503,7 +529,7 @@ function StatCard({ title, value, unit, icon, href, onClick, isActive }: { title
     </>
   );
 
-  const className = `bg-white p-6 rounded-2xl border transition-all hover:-translate-y-1 group relative overflow-hidden ${
+  const className = `w-full bg-white p-6 rounded-2xl border transition-all hover:-translate-y-1 group relative overflow-hidden flex items-start justify-between ${
     isActive 
       ? 'border-indigo-600 shadow-lg shadow-indigo-100' 
       : 'border-slate-200 shadow-sm hover:shadow-md'
