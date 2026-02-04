@@ -57,6 +57,11 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [expandedAlert, setExpandedAlert] = useState<string | null>(null);
   const [selectedComplianceFilter, setSelectedComplianceFilter] = useState<string | null>(null);
+  const [selectedNamespace, setSelectedNamespace] = useState<string | null>(null);
+  const [topApps, setTopApps] = useState<Allocation[]>([]);
+  const [showTopApps, setShowTopApps] = useState(false);
+  const [showAllWorkloads, setShowAllWorkloads] = useState(false);
+  const [showNamespaceList, setShowNamespaceList] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -65,29 +70,35 @@ function App() {
         const start = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
         const end = now.toISOString();
 
-        const [allocRes, compRes, alertsRes] = await Promise.all([
+        const [allocRes, compRes, alertsRes, topAppsRes] = await Promise.all([
           fetch(`/api/v1/reports/allocations?from=${start}&to=${end}&groupBy=namespace`),
           fetch(`/api/v1/reports/compliance?from=${start}&to=${end}`),
-          fetch(`/api/v1/reports/alerts?limit=5`)
+          fetch(`/api/v1/reports/alerts?limit=5`),
+          fetch(`/api/v1/reports/top-apps?from=${start}&to=${end}&limit=10`)
         ]);
 
         if (allocRes.ok) setAllocations(await allocRes.json());
         if (compRes.ok) setCompliance(await compRes.json());
         if (alertsRes.ok) setAlerts(await alertsRes.json());
+        if (topAppsRes.ok) setTopApps(await topAppsRes.json());
       } catch (error) {
         console.error("Failed to fetch data, using mock data", error);
         setAllocations([
           { groupKey: 'kube-system', totalCostUnits: 12.5, cpuMcpu: 2000, memMib: 4096 },
           { groupKey: 'kubechargeback', totalCostUnits: 2.3, cpuMcpu: 500, memMib: 512 },
-          { groupKey: 'default', totalCostUnits: 0.5, cpuMcpu: 100, memMib: 128 }
+          { groupKey: 'dev', totalCostUnits: 19.85, cpuMcpu: 3000, memMib: 8192 }
+        ]);
+        setTopApps([
+          { groupKey: 'nginx-ingress', totalCostUnits: 8.5, cpuMcpu: 1000, memMib: 2048 },
+          { groupKey: 'redis-master', totalCostUnits: 4.2, cpuMcpu: 500, memMib: 1024 },
+          { groupKey: 'api-gateway', totalCostUnits: 3.8, cpuMcpu: 400, memMib: 512 }
         ]);
         setCompliance({
-          summary: { ok: 15, missingRequests: 2, missingLimits: 3, bothMissing: 1 },
+          summary: { ok: 8, missingRequests: 0, missingLimits: 4, bothMissing: 5 },
           items: [
-            { namespace: 'default', kind: 'Deployment', name: 'app-1', complianceStatus: 'MISSING_LIMITS' },
-            { namespace: 'default', kind: 'Deployment', name: 'app-2', complianceStatus: 'BOTH_MISSING' },
-            { namespace: 'kube-system', kind: 'DaemonSet', name: 'proxy', complianceStatus: 'MISSING_REQUESTS' },
-            { namespace: 'kube-system', kind: 'Deployment', name: 'coredns', complianceStatus: 'OK' },
+            { namespace: 'dev', kind: 'Deployment', name: 'payments', complianceStatus: 'MISSING_LIMITS' },
+            { namespace: 'dev', kind: 'Deployment', name: 'auth', complianceStatus: 'BOTH_MISSING' },
+            { namespace: 'kube-system', kind: 'DaemonSet', name: 'aws-node', complianceStatus: 'OK' },
           ]
         });
         setAlerts([
@@ -143,25 +154,98 @@ function App() {
               </span>
             )}
           </a>
-          <div className="flex items-center gap-2 text-sm text-slate-500 bg-slate-100 px-3 py-1 rounded-full border border-slate-200">
-            <Activity className="w-4 h-4 text-emerald-500" />
+          <div 
+            onClick={() => setShowNamespaceList(!showNamespaceList)}
+            className={`flex items-center gap-2 text-sm cursor-pointer transition-colors px-3 py-1 rounded-full border ${
+              showNamespaceList ? 'bg-indigo-600 text-white border-indigo-600' : 'text-slate-500 bg-slate-100 border-slate-200 hover:bg-slate-200'
+            }`}
+          >
+            <Activity className={`w-4 h-4 ${showNamespaceList ? 'text-white' : 'text-emerald-500'}`} />
             Cluster Online
           </div>
         </div>
       </header>
 
+      {showNamespaceList && (
+        <div className="bg-indigo-600 text-white px-8 py-3 animate-in fade-in slide-in-from-top-2 duration-300 border-t border-indigo-500 shadow-inner">
+          <div className="max-w-7xl mx-auto flex items-center gap-4 text-xs font-bold uppercase tracking-widest">
+            <span>Monitored Namespaces:</span>
+            <div className="flex gap-2 flex-wrap">
+              {allocations.map(a => (
+                <span key={a.groupKey} className="bg-white/20 px-2 py-0.5 rounded">{a.groupKey}</span>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       <main className="p-8 max-w-7xl mx-auto space-y-8">
         {/* Stats Grid */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <StatCard title="Total Cost" value={totalCost.toFixed(2)} unit="Units" icon={<Wallet className="text-indigo-600" />} href="#cost-chart" />
+          <StatCard 
+            title="Total Cost" 
+            value={totalCost.toFixed(2)} 
+            unit="Units" 
+            icon={<Wallet className={showTopApps ? "text-white" : "text-indigo-600"} />} 
+            onClick={() => {
+              setShowTopApps(!showTopApps);
+              setShowAllWorkloads(false);
+            }}
+            isActive={showTopApps}
+          />
           <StatCard title="Compliance Score" value={complianceScore} unit="%" icon={<ShieldAlert className="text-amber-500" />} href="#compliance-summary" />
-          <StatCard title="Workloads" value={complianceTotal.toString()} unit="Total" icon={<PieChartIcon className="text-emerald-500" />} href="#compliance-summary" />
+          <StatCard 
+            title="Workloads" 
+            value={complianceTotal.toString()} 
+            unit="Total" 
+            icon={<PieChartIcon className={showAllWorkloads ? "text-white" : "text-emerald-500"} />} 
+            onClick={() => {
+              setShowAllWorkloads(!showAllWorkloads);
+              setShowTopApps(false);
+              setSelectedComplianceFilter(null);
+              setSelectedNamespace(null);
+            }}
+            isActive={showAllWorkloads}
+          />
         </div>
+
+        {showTopApps && (
+          <div className="bg-white p-6 rounded-2xl border-2 border-indigo-100 shadow-xl animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                <Wallet className="w-5 h-5 text-indigo-600" />
+                Cost Breakdown (Top 10 Apps)
+              </h3>
+              <button onClick={() => setShowTopApps(false)} className="text-xs font-black text-slate-400 hover:text-slate-600 uppercase tracking-tighter">Close</button>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {topApps.map((app, idx) => (
+                <div key={idx} className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-100 hover:border-indigo-200 transition-colors">
+                  <span className="font-bold text-slate-700">{app.groupKey}</span>
+                  <div className="flex items-center gap-4">
+                    <span className="text-xs text-slate-400 font-medium">{app.cpuMcpu}m CPU / {app.memMib}MiB</span>
+                    <span className="text-indigo-600 font-black">{app.totalCostUnits.toFixed(2)} Units</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* Allocation Chart */}
-          <div id="cost-chart" className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow scroll-mt-24">
-            <h3 className="text-lg font-semibold mb-6 text-slate-800">Cost by Namespace</h3>
+          <div id="cost-chart" className={`bg-white p-6 rounded-2xl border transition-all scroll-mt-24 ${selectedNamespace ? 'border-indigo-300 ring-2 ring-indigo-50 shadow-lg' : 'border-slate-200 shadow-sm'}`}>
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-lg font-semibold text-slate-800">Cost by Namespace</h3>
+              {selectedNamespace && (
+                <button 
+                  onClick={() => setSelectedNamespace(null)}
+                  className="text-[10px] font-black bg-indigo-100 text-indigo-700 px-2 py-1 rounded hover:bg-indigo-200 uppercase"
+                >
+                  Reset Filter: {selectedNamespace}
+                </button>
+              )}
+            </div>
             <div className="h-[300px] flex items-center justify-center">
               {allocations.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
@@ -175,15 +259,34 @@ function App() {
                       innerRadius={60}
                       outerRadius={80}
                       paddingAngle={5}
+                      onClick={(data) => {
+                        setSelectedNamespace(data.groupKey === selectedNamespace ? null : data.groupKey);
+                        setShowAllWorkloads(false);
+                      }}
+                      cursor="pointer"
                     >
                       {allocations.map((_entry, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                        <Cell 
+                          key={`cell-${index}`} 
+                          fill={COLORS[index % COLORS.length]} 
+                          stroke={_entry.groupKey === selectedNamespace ? '#4f46e5' : 'none'}
+                          strokeWidth={3}
+                          className="hover:opacity-80 transition-opacity"
+                        />
                       ))}
                     </Pie>
                     <Tooltip 
                       contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
                     />
-                    <Legend verticalAlign="bottom" height={36}/>
+                    <Legend 
+                      verticalAlign="bottom" 
+                      height={36} 
+                      onClick={(data) => {
+                        const val = data.value as string;
+                        setSelectedNamespace(val === selectedNamespace ? null : val);
+                      }}
+                      wrapperStyle={{ cursor: 'pointer' }}
+                    />
                   </PieChart>
                 </ResponsiveContainer>
               ) : (
@@ -196,62 +299,73 @@ function App() {
           </div>
 
           {/* Compliance Summary */}
-          <div id="compliance-summary" className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow scroll-mt-24">
-            <h3 className="text-lg font-semibold mb-6 text-slate-800">Compliance Summary</h3>
-            <div className="space-y-4">
-              <IssueRow 
-                label="Missing Requests" 
-                count={(compliance?.summary.missingRequests || 0) + (compliance?.summary.bothMissing || 0)} 
-                color="bg-amber-50 text-amber-700 border-amber-100" 
-                onClick={() => setSelectedComplianceFilter(selectedComplianceFilter === 'MISSING_REQUESTS' ? null : 'MISSING_REQUESTS')}
-                isActive={selectedComplianceFilter === 'MISSING_REQUESTS'}
-              />
-              <IssueRow 
-                label="Missing Limits" 
-                count={(compliance?.summary.missingLimits || 0) + (compliance?.summary.bothMissing || 0)} 
-                color="bg-orange-50 text-orange-700 border-orange-100" 
-                onClick={() => setSelectedComplianceFilter(selectedComplianceFilter === 'MISSING_LIMITS' ? null : 'MISSING_LIMITS')}
-                isActive={selectedComplianceFilter === 'MISSING_LIMITS'}
-              />
-              <IssueRow 
-                label="Both Missing" 
-                count={compliance?.summary.bothMissing || 0} 
-                color="bg-red-50 text-red-700 border-red-100" 
-                onClick={() => setSelectedComplianceFilter(selectedComplianceFilter === 'BOTH_MISSING' ? null : 'BOTH_MISSING')}
-                isActive={selectedComplianceFilter === 'BOTH_MISSING'}
-              />
-              <div 
-                onClick={() => setSelectedComplianceFilter(selectedComplianceFilter === 'OK' ? null : 'OK')}
-                className={`pt-6 border-t border-slate-100 mt-6 flex justify-between items-center cursor-pointer p-2 rounded-lg transition-colors ${
-                  selectedComplianceFilter === 'OK' ? 'bg-emerald-50 border-t-emerald-200' : 'hover:bg-slate-50'
-                }`}
-              >
-                <div className="flex flex-col">
-                  <span className={`font-medium text-sm ${selectedComplianceFilter === 'OK' ? 'text-emerald-900' : 'text-slate-500'}`}>Healthy Workloads</span>
-                  <span className="text-xs text-slate-400">Meeting all resource requirements</span>
+          <div id="compliance-summary" className={`bg-white p-6 rounded-2xl border transition-all scroll-mt-24 ${selectedComplianceFilter || showAllWorkloads || selectedNamespace ? 'border-indigo-200 shadow-lg' : 'border-slate-200 shadow-sm'}`}>
+            <h3 className="text-lg font-semibold mb-6 text-slate-800">
+              {showAllWorkloads ? 'Workload Inventory' : selectedNamespace ? `Workloads in ${selectedNamespace}` : 'Compliance Summary'}
+            </h3>
+            
+            {!showAllWorkloads && !selectedNamespace && (
+              <div className="space-y-4">
+                <IssueRow 
+                  label="Missing Requests" 
+                  count={(compliance?.summary.missingRequests || 0) + (compliance?.summary.bothMissing || 0)} 
+                  color="bg-amber-50 text-amber-700 border-amber-100" 
+                  onClick={() => setSelectedComplianceFilter(selectedComplianceFilter === 'MISSING_REQUESTS' ? null : 'MISSING_REQUESTS')}
+                  isActive={selectedComplianceFilter === 'MISSING_REQUESTS'}
+                />
+                <IssueRow 
+                  label="Missing Limits" 
+                  count={(compliance?.summary.missingLimits || 0) + (compliance?.summary.bothMissing || 0)} 
+                  color="bg-orange-50 text-orange-700 border-orange-100" 
+                  onClick={() => setSelectedComplianceFilter(selectedComplianceFilter === 'MISSING_LIMITS' ? null : 'MISSING_LIMITS')}
+                  isActive={selectedComplianceFilter === 'MISSING_LIMITS'}
+                />
+                <IssueRow 
+                  label="Both Missing" 
+                  count={compliance?.summary.bothMissing || 0} 
+                  color="bg-red-50 text-red-700 border-red-100" 
+                  onClick={() => setSelectedComplianceFilter(selectedComplianceFilter === 'BOTH_MISSING' ? null : 'BOTH_MISSING')}
+                  isActive={selectedComplianceFilter === 'BOTH_MISSING'}
+                />
+                <div 
+                  onClick={() => setSelectedComplianceFilter(selectedComplianceFilter === 'OK' ? null : 'OK')}
+                  className={`pt-6 border-t border-slate-100 mt-6 flex justify-between items-center cursor-pointer p-2 rounded-lg transition-colors ${
+                    selectedComplianceFilter === 'OK' ? 'bg-emerald-50 border-t-emerald-200' : 'hover:bg-slate-50'
+                  }`}
+                >
+                  <div className="flex flex-col">
+                    <span className={`font-medium text-sm ${selectedComplianceFilter === 'OK' ? 'text-emerald-900' : 'text-slate-500'}`}>Healthy Workloads</span>
+                    <span className="text-xs text-slate-400">Meeting all resource requirements</span>
+                  </div>
+                  <span className={`text-2xl font-bold ${selectedComplianceFilter === 'OK' ? 'text-emerald-700' : 'text-emerald-600'}`}>{compliance?.summary.ok}</span>
                 </div>
-                <span className={`text-2xl font-bold ${selectedComplianceFilter === 'OK' ? 'text-emerald-700' : 'text-emerald-600'}`}>{compliance?.summary.ok}</span>
               </div>
-            </div>
+            )}
 
-            {/* Compliance Details List */}
-            {selectedComplianceFilter && (
-              <div className="mt-8 pt-6 border-t border-slate-100 animate-in fade-in slide-in-from-top-4 duration-300">
+            {/* General Workload List */}
+            {(selectedComplianceFilter || showAllWorkloads || selectedNamespace) && (
+              <div className="animate-in fade-in slide-in-from-top-4 duration-300">
                 <div className="flex items-center justify-between mb-4">
-                  <h4 className="font-bold text-slate-800 flex items-center gap-2">
+                  <h4 className="font-bold text-slate-800 flex items-center gap-2 text-sm uppercase tracking-tight">
                     <Activity className="w-4 h-4 text-indigo-600" />
-                    Details: {selectedComplianceFilter.replace('_', ' ')}
+                    {selectedComplianceFilter ? `Status: ${selectedComplianceFilter.replace('_', ' ')}` : showAllWorkloads ? 'All Workloads' : `Namespace: ${selectedNamespace}`}
                   </h4>
                   <button 
-                    onClick={() => setSelectedComplianceFilter(null)}
-                    className="text-xs font-bold text-indigo-600 hover:text-indigo-800 uppercase tracking-tight"
+                    onClick={() => {
+                      setSelectedComplianceFilter(null);
+                      setShowAllWorkloads(false);
+                      setSelectedNamespace(null);
+                    }}
+                    className="text-[10px] font-black text-indigo-600 hover:text-indigo-800 uppercase tracking-tight border-b-2 border-indigo-100"
                   >
                     Clear Filter
                   </button>
                 </div>
-                <div className="max-h-[300px] overflow-y-auto space-y-2 pr-2 custom-scrollbar">
+                <div className="max-h-[400px] overflow-y-auto space-y-2 pr-2 custom-scrollbar">
                   {compliance?.items
                     .filter(item => {
+                      if (showAllWorkloads) return true;
+                      if (selectedNamespace) return item.namespace === selectedNamespace;
                       if (selectedComplianceFilter === 'MISSING_REQUESTS') {
                         return item.complianceStatus === 'MISSING_REQUESTS' || item.complianceStatus === 'BOTH_MISSING';
                       }
@@ -265,8 +379,12 @@ function App() {
                         <div className="flex flex-col">
                           <div className="flex items-center gap-2">
                             <span className="text-xs font-bold text-indigo-600 uppercase tracking-tighter">{item.kind}</span>
-                            {item.complianceStatus === 'BOTH_MISSING' && selectedComplianceFilter !== 'BOTH_MISSING' && (
-                              <span className="text-[8px] font-black bg-red-100 text-red-600 px-1 rounded">ALSO MISSING {selectedComplianceFilter === 'MISSING_REQUESTS' ? 'LIMITS' : 'REQUESTS'}</span>
+                            {item.complianceStatus !== 'OK' && (
+                              <span className={`text-[8px] font-black px-1 rounded ${
+                                item.complianceStatus === 'BOTH_MISSING' ? 'bg-red-100 text-red-600' : 'bg-amber-100 text-amber-600'
+                              }`}>
+                                {item.complianceStatus.replace('_', ' ')}
+                              </span>
                             )}
                           </div>
                           <span className="text-sm font-bold text-slate-700">{item.name}</span>
@@ -274,17 +392,6 @@ function App() {
                         <span className="text-[10px] font-bold bg-white px-2 py-1 rounded border border-slate-200 text-slate-500">{item.namespace}</span>
                       </div>
                     ))}
-                  {compliance?.items.filter(item => {
-                    if (selectedComplianceFilter === 'MISSING_REQUESTS') {
-                      return item.complianceStatus === 'MISSING_REQUESTS' || item.complianceStatus === 'BOTH_MISSING';
-                    }
-                    if (selectedComplianceFilter === 'MISSING_LIMITS') {
-                      return item.complianceStatus === 'MISSING_LIMITS' || item.complianceStatus === 'BOTH_MISSING';
-                    }
-                    return item.complianceStatus === selectedComplianceFilter;
-                  }).length === 0 && (
-                    <p className="text-sm text-slate-400 text-center py-4 italic">No workloads found with this status.</p>
-                  )}
                 </div>
               </div>
             )}
@@ -373,32 +480,53 @@ function App() {
   )
 }
 
-function StatCard({ title, value, unit, icon, href }: { title: string, value: string, unit: string, icon: React.ReactNode, href?: string }) {
+function StatCard({ title, value, unit, icon, href, onClick, isActive }: { title: string, value: string, unit: string, icon: React.ReactNode, href?: string, onClick?: () => void, isActive?: boolean }) {
   const content = (
     <>
-      <div>
-        <p className="text-slate-500 text-sm font-semibold mb-1 uppercase tracking-wider">{title}</p>
+      <div className="relative z-10">
+        <p className={`text-sm font-semibold mb-1 uppercase tracking-wider ${isActive ? 'text-indigo-100' : 'text-slate-500'}`}>{title}</p>
         <div className="flex items-baseline gap-1">
-          <span className="text-3xl font-extrabold text-slate-900">{value}</span>
-          <span className="text-slate-400 text-sm font-medium">{unit}</span>
+          <span className={`text-3xl font-extrabold ${isActive ? 'text-white' : 'text-slate-900'}`}>{value}</span>
+          <span className={`text-sm font-medium ${isActive ? 'text-indigo-200' : 'text-slate-400'}`}>{unit}</span>
         </div>
       </div>
-      <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 shadow-inner group-hover:bg-indigo-50 transition-colors">
+      <div className={`p-3 rounded-xl border transition-colors relative z-10 ${
+        isActive 
+          ? 'bg-white/20 border-white/30 text-white' 
+          : 'bg-slate-50 border-slate-100 shadow-inner group-hover:bg-indigo-50'
+      }`}>
         {icon}
       </div>
+      {isActive && (
+        <div className="absolute inset-0 bg-indigo-600 rounded-2xl animate-in fade-in duration-300"></div>
+      )}
     </>
   );
 
+  const className = `bg-white p-6 rounded-2xl border transition-all hover:-translate-y-1 group relative overflow-hidden ${
+    isActive 
+      ? 'border-indigo-600 shadow-lg shadow-indigo-100' 
+      : 'border-slate-200 shadow-sm hover:shadow-md'
+  }`;
+
+  if (onClick) {
+    return (
+      <button onClick={onClick} className={className}>
+        {content}
+      </button>
+    );
+  }
+
   if (href) {
     return (
-      <a href={href} className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex items-start justify-between hover:shadow-md transition-all hover:-translate-y-1 group">
+      <a href={href} className={className}>
         {content}
       </a>
     );
   }
 
   return (
-    <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex items-start justify-between">
+    <div className={className}>
       {content}
     </div>
   )
