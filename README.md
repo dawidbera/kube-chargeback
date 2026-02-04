@@ -129,12 +129,6 @@ Configuration is managed via the `kubechargeback-config` ConfigMap or `applicati
 - `namespace.allowlist`: CSV list of namespaces to monitor (empty means current namespace only).
 - **Note**: The SQLite database uses **WAL (Write-Ahead Logging)** mode to allow concurrent access between the API and the Collector.
 
-## CI/CD
-
-This project is configured for **GitHub Actions** and **GitLab CI/CD**:
-- **GitHub**: Automated mirroring to GitLab via `.github/workflows/mirror.yml`.
-- **GitLab**: The pipeline defined in `.gitlab-ci.yml` handles building, testing, and packaging Docker images.
-
 ## API & Documentation
 
 The API is available at `/api/v1`. 
