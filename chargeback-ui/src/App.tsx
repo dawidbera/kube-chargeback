@@ -62,6 +62,8 @@ function App() {
   const [showTopApps, setShowTopApps] = useState(false);
   const [showAllWorkloads, setShowAllWorkloads] = useState(false);
   const [showNamespaceList, setShowNamespaceList] = useState(false);
+  const [showCostTable, setShowCostTable] = useState(false);
+  const [bellRinging, setBellRinging] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -146,14 +148,24 @@ function App() {
           <h1 className="text-xl font-bold text-slate-800 tracking-tight">KubeChargeback <span className="text-indigo-600">Dashboard</span></h1>
         </div>
         <div className="flex items-center gap-4">
-          <a href="#alerts" className="relative block group">
-            <Bell className="w-6 h-6 text-slate-400 cursor-pointer group-hover:text-indigo-600 transition-colors" />
-            {alerts.length > 0 && (
-              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full border-2 border-white">
-                {alerts.length}
-              </span>
-            )}
-          </a>
+          <div className="relative group">
+            <button 
+              onClick={() => {
+                setBellRinging(true);
+                setTimeout(() => setBellRinging(false), 1000);
+                const el = document.getElementById('alerts');
+                if (el) el.scrollIntoView({ behavior: 'smooth' });
+              }}
+              className={`p-2 rounded-full transition-all ${bellRinging ? 'bg-indigo-100 scale-110' : 'hover:bg-slate-100'}`}
+            >
+              <Bell className={`w-6 h-6 transition-colors ${bellRinging ? 'text-indigo-600 fill-indigo-200' : 'text-slate-400 group-hover:text-indigo-600'}`} />
+              {alerts.length > 0 && (
+                <span className="absolute top-1 right-1 bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full border-2 border-white">
+                  {alerts.length}
+                </span>
+              )}
+            </button>
+          </div>
           <div 
             onClick={() => setShowNamespaceList(!showNamespaceList)}
             className={`flex items-center gap-2 text-sm cursor-pointer transition-colors px-3 py-1 rounded-full border ${
@@ -263,17 +275,61 @@ function App() {
                 Cost by Namespace
                 {selectedNamespace && <span className="text-xs bg-indigo-600 text-white px-2 py-0.5 rounded-full animate-pulse">Filtered</span>}
               </h3>
-              {selectedNamespace && (
+              <div className="flex gap-2">
                 <button 
-                  onClick={() => setSelectedNamespace(null)}
-                  className="text-[10px] font-black bg-indigo-100 text-indigo-700 px-2 py-1 rounded hover:bg-indigo-200 uppercase"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowCostTable(!showCostTable);
+                  }}
+                  className={`text-[10px] font-black px-2 py-1 rounded transition-colors uppercase ${
+                    showCostTable ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                  }`}
                 >
-                  Reset Filter: {selectedNamespace}
+                  {showCostTable ? 'Show Chart' : 'Show Table'}
                 </button>
-              )}
+                {selectedNamespace && (
+                  <button 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedNamespace(null);
+                    }}
+                    className="text-[10px] font-black bg-indigo-100 text-indigo-700 px-2 py-1 rounded hover:bg-indigo-200 uppercase"
+                  >
+                    Reset Filter
+                  </button>
+                )}
+              </div>
             </div>
             <div className="h-[300px] flex items-center justify-center">
-              {allocations.length > 0 ? (
+              {showCostTable ? (
+                <div className="w-full h-full overflow-y-auto custom-scrollbar">
+                  <table className="w-full text-left text-xs">
+                    <thead className="sticky top-0 bg-white">
+                      <tr className="border-b border-slate-100">
+                        <th className="py-2 font-bold text-slate-400 uppercase tracking-tighter">Namespace</th>
+                        <th className="py-2 font-bold text-slate-400 uppercase tracking-tighter text-right">CPU</th>
+                        <th className="py-2 font-bold text-slate-400 uppercase tracking-tighter text-right">Cost</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-50">
+                      {allocations.map((a, idx) => (
+                        <tr 
+                          key={idx} 
+                          className={`hover:bg-slate-50 cursor-pointer ${selectedNamespace === a.groupKey ? 'bg-indigo-50' : ''}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedNamespace(a.groupKey === selectedNamespace ? null : a.groupKey);
+                          }}
+                        >
+                          <td className="py-3 font-bold text-slate-700">{a.groupKey}</td>
+                          <td className="py-3 text-right text-slate-500">{a.cpuMcpu}m</td>
+                          <td className="py-3 text-right font-black text-indigo-600">{a.totalCostUnits.toFixed(2)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : allocations.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
